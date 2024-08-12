@@ -1,0 +1,21 @@
+defaults:
+  - _self_
+
+# Training configuration
+trainer:
+  batch_size: 32
+  learning_rate: 1e-4
+  epochs: 100000
+  train_val_split: 0.9  # Added train-val split percentage
+  project_name: "cobot/vision-ik"
+  model_checkpoint_path: "vision_ik_model.pth"
+
+# Dataset configuration
+dataset:
+  dataset_dir: "Absolute path to dataset directory"
+  save_plots: false
+  stat_percentile_range: [1, 99]
+
+# Neptune configuration
+neptune:
+  api_token: <Neptune API Token>
