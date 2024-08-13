@@ -5,13 +5,15 @@ import os
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
+from omegaconf import DictConfig, OmegaConf
+
 
 JOINT_NAMES = ["waist", "shoulder", "elbow", "forearm_roll", "wrist_angle", "wrist_rotate"]
 STATE_NAMES = JOINT_NAMES + ["gripper"]
 ALL_NAMES = [name + '_left' for name in STATE_NAMES] + [name + '_right' for name in STATE_NAMES]
 
 class IKDataset(Dataset):
-    def __init__(self, dataset_dir, transform=None, stat_percentile_range=(1, 99), save_plots=True):
+    def __init__(self, dataset_dir, cfg : DictConfig, stat_percentile_range=(1, 99), save_plots=True):
         '''
         Args:
             dataset_dir (string): Directory with all the dataset files.
@@ -22,12 +24,69 @@ class IKDataset(Dataset):
         '''
         image_dir = os.path.join(dataset_dir, 'images')
         self.image_dir = image_dir
+        first_image_path = os.path.join(self.image_dir, os.listdir(self.image_dir)[0])
+        with Image.open(first_image_path) as img:
+            self.image_size = img.size  # (width, height)
         self.labels = self.load_labels(os.path.join(dataset_dir, 'labels.csv'))
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((48, 64)),
-            transforms.ToTensor()
-        ])
         self.stat_percentile_range = stat_percentile_range
+
+        # Augmentations
+        augmentation_transforms = []
+        augmentations = cfg.augmentations
+        if augmentations and augmentations.get("apply", False):
+            aug_cfg = augmentations
+
+            if "ColorJitter" in aug_cfg:
+                cj = aug_cfg["ColorJitter"]
+                augmentation_transforms.append(transforms.RandomApply(
+                    [transforms.ColorJitter(
+                        brightness=cj.get("brightness", 0.15),
+                        contrast=cj.get("contrast", 0.5),
+                        saturation=cj.get("saturation", 0.5),
+                        hue=cj.get("hue", 0.1)
+                    )],
+                    p=cj.get("p", 0.5)
+                ))
+
+            if "RandomPerspective" in aug_cfg:
+                rp = aug_cfg["RandomPerspective"]
+                augmentation_transforms.append(transforms.RandomApply(
+                    [transforms.RandomPerspective(
+                        distortion_scale=rp.get("distortion_scale", 0.2),
+                        p=rp.get("p", 0.8)
+                    )],
+                    p=rp.get("p", 0.8)
+                ))
+
+            if "ElasticTransform" in aug_cfg:
+                et = aug_cfg["ElasticTransform"]
+                augmentation_transforms.append(transforms.RandomApply(
+                    [transforms.ElasticTransform(
+                        alpha=et.get("alpha", 300.0),
+                        sigma=et.get("sigma", 7.0)
+                    )],
+                    p=et.get("p", 0.5)
+                ))
+
+            if "RandomResizedCrop" in aug_cfg:
+                rrc = aug_cfg["RandomResizedCrop"]
+                resize_factor = rrc["crop_scale"]
+                rrc_size = (int((resize_factor*self.image_size[1])), int(resize_factor*self.image_size[0]))
+                augmentation_transforms.append(transforms.RandomApply(
+                    [transforms.RandomResizedCrop(
+                        size=tuple(rrc_size),
+                        scale=tuple(rrc["scale"]),
+                        ratio=tuple(rrc["ratio"])
+                    )],
+                    p=rrc.get("p", 0.5)
+                ))
+
+        # Base transformations including augmentations
+        self.transform = transforms.Compose(augmentation_transforms + [
+            transforms.Resize((48, 64)),
+            transforms.ToTensor()   
+        ])
+
         self.save_plots = save_plots
         self.plot_dir = os.path.join(dataset_dir, 'stat_plots')
 
