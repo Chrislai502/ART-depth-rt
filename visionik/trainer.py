@@ -11,15 +11,16 @@ from visionik.model import VisionIKModel
 from visionik.dataset import IKDataset
 
 class Trainer:
-    def __init__(self, model, cfg: DictConfig):
+    def __init__(self, model, cfg: DictConfig, resume_checkpoint=None):
         self.model = model
         self.epochs = cfg.trainer.epochs
+        self.checkpoint_interval = cfg.trainer.checkpoint_interval
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        
+
         # Load Dataset
         dataset_cfg = cfg.dataset
-        full_dataset = IKDataset(
+        self.full_dataset = IKDataset(
             dataset_dir=dataset_cfg.dataset_dir,
             save_plots=dataset_cfg.save_plots,
             stat_percentile_range=dataset_cfg.stat_percentile_range
@@ -27,10 +28,10 @@ class Trainer:
 
         # Train-validation split
         train_val_split = cfg.trainer.train_val_split
-        train_size = int(train_val_split * len(full_dataset))
-        val_size = len(full_dataset) - train_size
+        train_size = int(train_val_split * len(self.full_dataset))
+        val_size = len(self.full_dataset) - train_size
 
-        train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
+        train_dataset, val_dataset = random_split(self.full_dataset, [train_size, val_size])
 
         # Create DataLoaders
         self.train_loader = DataLoader(train_dataset, batch_size=cfg.trainer.batch_size, shuffle=True)
@@ -39,7 +40,10 @@ class Trainer:
         # Loss function and optimizer
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.trainer.learning_rate)
-        
+
+        self.start_epoch = 0
+        self.step = 0
+
         # Initialize Neptune logger
         self.run = neptune.init_run(
             project=cfg.trainer.project_name, 
@@ -49,12 +53,21 @@ class Trainer:
         # Log hyperparameters
         self.run["hyperparameters"] = stringify_unsupported(OmegaConf.to_container(cfg, resolve=True))
 
+        # Resume from checkpoint if specified
+        if resume_checkpoint:
+            self.load_checkpoint(resume_checkpoint)
+
     def train(self):
         self.model.train()
 
-        for epoch in range(self.epochs):
+        for epoch in range(self.start_epoch, self.epochs):
             epoch_loss = 0.0
             for i, (images, labels) in enumerate(self.train_loader):
+                self.step += 1
+
+                # Normalize the labels
+                labels = (labels - self.full_dataset.mean) / self.full_dataset.std
+
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
@@ -73,6 +86,11 @@ class Trainer:
 
                 # Log batch loss to Neptune
                 self.run["train/batch_loss"].log(loss.item())
+
+                # Checkpoint the model every `n` steps
+                if self.step % self.checkpoint_interval == 0:
+                    checkpoint_path = f"checkpoint_epoch_{epoch}_step_{self.step}.pth"
+                    self.save_checkpoint(checkpoint_path)
 
             # Log epoch loss to Neptune
             avg_epoch_loss = epoch_loss / len(self.train_loader)
@@ -102,6 +120,29 @@ class Trainer:
         avg_val_loss = val_loss / len(self.val_loader)
         return avg_val_loss
 
+    def save_checkpoint(self, path):
+        checkpoint = {
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epoch': self.epochs,
+            'step': self.step,
+            'mean': self.full_dataset.mean,
+            'std': self.full_dataset.std
+        }
+        torch.save(checkpoint, path)
+        self.run["model_checkpoint"].upload(path)
+        print(f"Checkpoint saved to {path} and uploaded to Neptune.")
+
+    def load_checkpoint(self, path):
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.start_epoch = checkpoint['epoch']
+        self.step = checkpoint['step']
+        self.full_dataset.mean = checkpoint['mean']
+        self.full_dataset.std = checkpoint['std']
+        print(f"Resumed training from checkpoint {path}.")
+
     def save_model(self, path=None):
         if path is None:
             path = "vision_ik_model.pth"
@@ -116,8 +157,11 @@ def main(cfg: DictConfig):
     # Initialize model
     model = VisionIKModel()
 
+    # Check if resuming from a checkpoint
+    resume_checkpoint = cfg.trainer.resume_checkpoint if "resume_checkpoint" in cfg.trainer else None
+
     # Initialize trainer
-    trainer = Trainer(model=model, cfg=cfg)
+    trainer = Trainer(model=model, cfg=cfg, resume_checkpoint=resume_checkpoint)
 
     # Train the model
     trainer.train()
