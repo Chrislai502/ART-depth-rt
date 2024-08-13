@@ -16,7 +16,7 @@ def test_ik_dataset(cfg: DictConfig):
     )
 
     # Create data loader
-    dataloader = DataLoader(ik_dataset, batch_size=4, shuffle=True, num_workers=2)
+    dataloader = DataLoader(ik_dataset, batch_size=5, shuffle=True, num_workers=2)
 
     # Iterate over the DataLoader
     for i, (images, labels) in enumerate(dataloader):
@@ -25,13 +25,18 @@ def test_ik_dataset(cfg: DictConfig):
         print(f"Label batch shape: {labels.size()}")
         print(f"Labels: {labels}")
 
-        # Display the images in the batch
+        # Display and save the images side by side
+        fig, axes = plt.subplots(1, 5, figsize=(20, 4))
         for j in range(images.size(0)):
             image = images[j].permute(1, 2, 0).numpy()
-            plt.imshow(image)
-            plt.title(f"Sample {j+1} - Label: {labels[j]}")
-            plt.show()
-
+            axes[j].imshow(image)
+            axes[j].set_title(f"Label: {labels[j].numpy()}")
+            axes[j].axis('off')
+        
+        plt.tight_layout()
+        plt.savefig(f'batch_{i+1}.png')
+        plt.show()
+        
         break
 
 @hydra.main(config_path="../conf", config_name="config")
