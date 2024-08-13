@@ -92,7 +92,7 @@ class Trainer:
                     epoch_loss += loss.item()
 
                     # Log batch loss to Neptune
-                    self.run["train/batch_loss"].log(loss.item())
+                    self.run["train/batch_loss"].append(loss.item(), step=self.step)
 
                     # Checkpoint the model every `n` steps
                     if self.step % self.checkpoint_interval == 0:
@@ -101,11 +101,11 @@ class Trainer:
 
             # Log epoch loss to Neptune
             avg_epoch_loss = epoch_loss / len(self.train_loader)
-            self.run["train/epoch_loss"].log(avg_epoch_loss)
+            self.run["train/epoch_loss"].append(avg_epoch_loss, step=self.step)
 
             # Validate the model after each epoch
             val_loss = self.validate()
-            self.run["validation/epoch_loss"].log(val_loss)
+            self.run["validation/epoch_loss"].append(val_loss, step=self.step)
 
             print(f'Epoch [{epoch+1}/{self.epochs}], Loss: {avg_epoch_loss:.4f}, Validation Loss: {val_loss:.4f}')
 
