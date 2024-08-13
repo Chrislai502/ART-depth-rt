@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import neptune
 from neptune.utils import stringify_unsupported
 import os
@@ -21,22 +21,24 @@ class Trainer:
 
         # Load Dataset
         dataset_cfg = cfg.dataset
-        self.full_dataset = IKDataset(
-            dataset_dir=dataset_cfg.dataset_dir,
+        train_dataset = IKDataset(
+            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'train'),
             save_plots=dataset_cfg.save_plots,
             stat_percentile_range=dataset_cfg.stat_percentile_range,
             cfg=cfg.dataset
         )
+        val_dataset = IKDataset(
+            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'val'),
+            cfg=cfg.dataset,
+            val = True
+        )
+
+        self.dataset_mean_action_value = train_dataset.mean_action_value
+        self.dataset_std_action_value = train_dataset.std_action_value
 
         # Train-validation split
-        train_val_split = cfg.trainer.train_val_split
-        train_size = int(train_val_split * len(self.full_dataset))
-        val_size = len(self.full_dataset) - train_size
-
-        train_dataset, val_dataset = random_split(self.full_dataset, [train_size, val_size])
-
         # Create DataLoaders
-        self.train_loader = DataLoader(train_dataset, batch_size=cfg.trainer.batch_size, shuffle=True)
+        self.train_loader = DataLoader(train_dataset, batch_size=cfg.trainer.batch_size, shuffle=True, num_workers=cfg.trainer.num_workers)
         self.val_loader = DataLoader(val_dataset, batch_size=cfg.trainer.batch_size, shuffle=False)
 
         # Loss function and optimizer
@@ -73,7 +75,7 @@ class Trainer:
                     self.step += 1
 
                     # Normalize the labels
-                    labels = (labels - self.full_dataset.mean_action_value) / self.full_dataset.std_action_value
+                    labels = (labels - self.dataset_mean_action_value) / self.dataset_std_action_value
 
                     images = images.to(self.device)
                     labels = labels.to(self.device)
@@ -133,8 +135,8 @@ class Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epoch': self.epochs,
             'step': self.step,
-            'mean': self.full_dataset.mean_action_value,
-            'std': self.full_dataset.std_action_value
+            'mean': self.dataset_mean_action_value,
+            'std': self.dataset_std_action_value
         }
         torch.save(checkpoint, path)
         self.run[f"ckpt/{path.split('/')[-1]}"].upload(path)

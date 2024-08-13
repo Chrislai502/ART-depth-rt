@@ -13,7 +13,7 @@ STATE_NAMES = JOINT_NAMES + ["gripper"]
 ALL_NAMES = [name + '_left' for name in STATE_NAMES] + [name + '_right' for name in STATE_NAMES]
 
 class IKDataset(Dataset):
-    def __init__(self, dataset_dir, cfg : DictConfig, stat_percentile_range=(1, 99), save_plots=True):
+    def __init__(self, dataset_dir, cfg : DictConfig, stat_percentile_range=(1, 99), save_plots=False, val = False):
         '''
         Args:
             dataset_dir (string): Directory with all the dataset files.
@@ -29,11 +29,15 @@ class IKDataset(Dataset):
             self.image_size = img.size  # (width, height)
         self.labels = self.load_labels(os.path.join(dataset_dir, 'labels.csv'))
         self.stat_percentile_range = stat_percentile_range
+        apply_augmentations = cfg.augmentations.get("apply", False)
+        if val:
+            apply_augmentations = False
+            stat_percentile_range = (0, 100)
 
         # Augmentations
         augmentation_transforms = []
         augmentations = cfg.augmentations
-        if augmentations and augmentations.get("apply", False):
+        if augmentations and apply_augmentations:
             aug_cfg = augmentations
 
             if "ColorJitter" in aug_cfg:
