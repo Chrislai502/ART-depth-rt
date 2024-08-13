@@ -31,7 +31,7 @@ dataset:
     ElasticTransform: 
       alpha: 50.0
       sigma: 7.0
-      p: 1.0
+      p: 0.4
     RandomResizedCrop:
       crop_scale: 0.95
       scale: [0.8, 1.0]

@@ -3,6 +3,9 @@ outputs/
 config.yaml
 *.jpg
 *.png
+*.gif
+*.hdf5
+models
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
