@@ -6,7 +6,7 @@ trainer:
   batch_size: 64
   learning_rate: 1e-4
   epochs: 100000
-  train_val_split: 0.9  # Added train-val split percentage
+  num_workers: 4
   project_name: "cobot/vision-ik"
   model_checkpoint_path: "vision_ik_model.pth"
   checkpoint_interval: 1000  # Save checkpoint every 100 steps
