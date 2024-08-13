@@ -9,13 +9,35 @@ trainer:
   train_val_split: 0.9  # Added train-val split percentage
   project_name: "cobot/vision-ik"
   model_checkpoint_path: "vision_ik_model.pth"
+  checkpoint_interval: 1000  # Save checkpoint every 100 steps
+  resume_checkpoint: null  # Path to checkpoint file to resume from
 
 # Dataset configuration
 dataset:
   dataset_dir: "Absolute path to dataset directory"
   save_plots: false
   stat_percentile_range: [1, 99]
+  augmentations:
+    apply: true
+    ColorJitter:
+      brightness: 0.15
+      contrast: 0.5
+      saturation: 0.5
+      hue: 0.1
+      p: 0.4
+    RandomPerspective: 
+      distortion_scale: 0.05
+      p: 0.2
+    ElasticTransform: 
+      alpha: 50.0
+      sigma: 7.0
+      p: 1.0
+    RandomResizedCrop:
+      crop_scale: 0.95
+      scale: [0.8, 1.0]
+      ratio: [0.75, 1.33]
+      p: 0.2
 
 # Neptune configuration
 neptune:
-  api_token: <Neptune API Token>
+  api_token: "<Neptune API Token>"
