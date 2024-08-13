@@ -94,7 +94,7 @@ class IKDataset(Dataset):
             os.makedirs(self.plot_dir)
 
         # Calculate Statistics
-        print('Calculating Statistics...')
+        print('Calculating Dataset Statistics...')
         self.max_action_value, self.min_action_value = self.calculate_min_max()
         self.mean_action_value, self.std_action_value = self.calculate_mean_std()
 
@@ -174,10 +174,6 @@ class IKDataset(Dataset):
             image = self.transform(image)
 
         label = self.labels[img_name]
-        
-        # Normalize the label
-        label = (label - self.mean_action_value) / self.std_action_value
-        
         label = torch.tensor(label, dtype=torch.float32)
         
         return image, label

@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, random_split
 import neptune
 from neptune.utils import stringify_unsupported
 import os
+from tqdm import tqdm
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from visionik.model import VisionIKModel
@@ -23,7 +24,8 @@ class Trainer:
         self.full_dataset = IKDataset(
             dataset_dir=dataset_cfg.dataset_dir,
             save_plots=dataset_cfg.save_plots,
-            stat_percentile_range=dataset_cfg.stat_percentile_range
+            stat_percentile_range=dataset_cfg.stat_percentile_range,
+            cfg=cfg.dataset
         )
 
         # Train-validation split
@@ -62,35 +64,40 @@ class Trainer:
 
         for epoch in range(self.start_epoch, self.epochs):
             epoch_loss = 0.0
-            for i, (images, labels) in enumerate(self.train_loader):
-                self.step += 1
 
-                # Normalize the labels
-                labels = (labels - self.full_dataset.mean) / self.full_dataset.std
+            # Wrap the training DataLoader with tqdm
+            with tqdm(self.train_loader, unit="batch") as tepoch:
+                tepoch.set_description(f"Epoch {epoch+1}/{self.epochs}")
+                
+                for i, (images, labels) in enumerate(tepoch):
+                    self.step += 1
 
-                images = images.to(self.device)
-                labels = labels.to(self.device)
+                    # Normalize the labels
+                    labels = (labels - self.full_dataset.mean_action_value) / self.full_dataset.std_action_value
 
-                # Zero the parameter gradients
-                self.optimizer.zero_grad()
+                    images = images.to(self.device)
+                    labels = labels.to(self.device)
 
-                # Forward pass
-                outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
+                    # Zero the parameter gradients
+                    self.optimizer.zero_grad()
 
-                # Backward pass and optimize
-                loss.backward()
-                self.optimizer.step()
+                    # Forward pass
+                    outputs = self.model(images)
+                    loss = self.criterion(outputs, labels)
 
-                epoch_loss += loss.item()
+                    # Backward pass and optimize
+                    loss.backward()
+                    self.optimizer.step()
 
-                # Log batch loss to Neptune
-                self.run["train/batch_loss"].log(loss.item())
+                    epoch_loss += loss.item()
 
-                # Checkpoint the model every `n` steps
-                if self.step % self.checkpoint_interval == 0:
-                    checkpoint_path = f"checkpoint_epoch_{epoch}_step_{self.step}.pth"
-                    self.save_checkpoint(checkpoint_path)
+                    # Log batch loss to Neptune
+                    self.run["train/batch_loss"].log(loss.item())
+
+                    # Checkpoint the model every `n` steps
+                    if self.step % self.checkpoint_interval == 0:
+                        checkpoint_path = f"checkpoint_epoch_{epoch}_step_{self.step}.pth"
+                        self.save_checkpoint(checkpoint_path)
 
             # Log epoch loss to Neptune
             avg_epoch_loss = epoch_loss / len(self.train_loader)
@@ -126,11 +133,11 @@ class Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epoch': self.epochs,
             'step': self.step,
-            'mean': self.full_dataset.mean,
-            'std': self.full_dataset.std
+            'mean': self.full_dataset.mean_action_value,
+            'std': self.full_dataset.std_action_value
         }
         torch.save(checkpoint, path)
-        self.run["model_checkpoint"].upload(path)
+        self.run[f"ckpt/{path.split('/')[-1]}"].upload(path)
         print(f"Checkpoint saved to {path} and uploaded to Neptune.")
 
     def load_checkpoint(self, path):
@@ -139,8 +146,8 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.start_epoch = checkpoint['epoch']
         self.step = checkpoint['step']
-        self.full_dataset.mean = checkpoint['mean']
-        self.full_dataset.std = checkpoint['std']
+        self.full_dataset.mean_action_value = checkpoint['mean']
+        self.full_dataset.std_action_value = checkpoint['std']
         print(f"Resumed training from checkpoint {path}.")
 
     def save_model(self, path=None):
