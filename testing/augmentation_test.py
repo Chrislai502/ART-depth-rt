@@ -21,11 +21,12 @@ augmentations = {
     # "ColorJitter": transforms.ColorJitter(brightness=0.15, contrast=0.5, saturation=0.5, hue=0.1),
     # "RandomAdjustSharpness": transforms.RandomAdjustSharpness(sharpness_factor=2.0),
     # "GaussianNoise": v2.GaussianNoise(mean=0.0, sigma=0.1), # For Pil Images
-    "ColorJitter": transforms.ColorJitter(brightness=0.15, contrast=0.5, saturation=0.5, hue=0.1),
-    "RandomPerspective": transforms.RandomPerspective(distortion_scale=0.2, p=0.8),
-    "ElasticTransform": transforms.ElasticTransform(alpha=300.0, sigma=7.0), # Sigma correlates to image clarity, alpha correlates to waviness.
-    "RandomResizedCrop": transforms.RandomResizedCrop(size=(int((resize_factor*image_size[1])), int(resize_factor*image_size[0])), scale=(0.8, 1.0), ratio=(0.75, 1.33)),
-    "Resize": transforms.Resize(size=(48, 64))
+    # "ColorJitter": transforms.ColorJitter(brightness=0.15, contrast=0.5, saturation=0.5, hue=0.1),
+    # "RandomPerspective": transforms.RandomPerspective(distortion_scale=0.2, p=0.8),
+    # "ElasticTransform": transforms.ElasticTransform(alpha=300.0, sigma=7.0), # Sigma correlates to image clarity, alpha correlates to waviness.
+    # "RandomResizedCrop": transforms.RandomResizedCrop(size=(int((resize_factor*image_size[1])), int(resize_factor*image_size[0])), scale=(0.8, 1.0), ratio=(0.75, 1.33)),
+    "JPEGCompression": v2.JPEG((5, 60)),
+    # "Resize": transforms.Resize(size=(48, 64))
 }
 
 # Apply each augmentation and display/save the result
@@ -47,7 +48,7 @@ plt.suptitle(f'{name} Augmentation Examples')
 
 # Save the entire figure as a single image
 combined_save_path = f"augmented_{name}_combined.jpg"
-combined_save_path = f"augmented_elastic resize_combined.jpg"
+combined_save_path = f"jpeg resize_combined.jpg"
 plt.savefig(combined_save_path)
 print(f"Saved combined {name} image to {combined_save_path}")
 

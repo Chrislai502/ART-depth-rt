@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
+from torchvision.transforms import v2
 import os
 from PIL import Image
 import numpy as np
@@ -83,6 +84,14 @@ class IKDataset(Dataset):
                         ratio=tuple(rrc["ratio"])
                     )],
                     p=rrc.get("p", 0.5)
+                ))
+            if "JPEGCompression" in aug_cfg:
+                jc = aug_cfg["JPEGCompression"]
+                augmentation_transforms.append(transforms.RandomApply(
+                    [v2.JPEG(
+                        tuple(jc["quality_range"])
+                    )],
+                    p=jc.get("p", 0.5)
                 ))
 
         # Base transformations including augmentations

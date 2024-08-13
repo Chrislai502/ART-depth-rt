@@ -37,6 +37,9 @@ dataset:
       scale: [0.8, 1.0]
       ratio: [0.75, 1.33]
       p: 0.4
+    JPEGCompression:
+      quality_range: [15, 60]
+      p: 0.4
 
 # Neptune configuration
 neptune:
