@@ -7,11 +7,11 @@ defaults:
 #  MobileNet_V3_Small
 #  VisionIKModel
 model: 
-  name: "MobileNet_V3_Large" 
+  name: "MobileNet_V3_Small" 
   
 # Training configuration
 trainer:
-  batch_size: 64
+  batch_size: 40
   learning_rate: 1e-4
   epochs: 100000
   num_workers: 8
@@ -29,25 +29,25 @@ dataset:
     apply: true
     ColorJitter:
       brightness: 0.15
-      contrast: 0.5
-      saturation: 0.5
+      contrast: 0.2
+      saturation: 0.2
       hue: 0.1
       p: 0.3
     RandomPerspective: 
       distortion_scale: 0.05
-      p: 0.2
+      p: 0.0
     ElasticTransform: 
       alpha: 50.0
       sigma: 7.0
-      p: 0.4
+      p: 0.0
     RandomResizedCrop:
-      crop_scale: 0.95
-      scale: [0.8, 1.0]
-      ratio: [0.75, 1.33]
-      p: 0.4
+      crop_scale: 0.999
+      scale: [0.999, 1.0]
+      ratio: [0.999, 1.01]
+      p: 0.0
     JPEGCompression:
-      quality_range: [40, 75]
-      p: 0.4
+      quality_range: [80, 95]
+      p: 0.5
 
 # Neptune configuration
 neptune:

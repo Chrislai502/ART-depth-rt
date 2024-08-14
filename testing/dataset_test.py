@@ -37,7 +37,7 @@ def test_ik_dataset(cfg: DictConfig):
         plt.savefig(f'batch_{i+1}.png')
         plt.show()
         
-        break
+        # break
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg: DictConfig):
