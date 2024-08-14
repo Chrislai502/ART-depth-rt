@@ -1,8 +1,16 @@
 from visionik.dataset import IKDataset
-from visionik.model import VisionIKModel
+from visionik.model import VisionIKModel, ShuffleNet_V2_X0_5, MobileNet_V3_Large, MobileNet_V3_Small 
 from visionik.trainer import Trainer
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from torchvision import models
+
+MODELS = {
+    "VisionIKModel": VisionIKModel,
+    "ShuffleNet_V2_X0_5": ShuffleNet_V2_X0_5,
+    "MobileNet_V3_Large": MobileNet_V3_Large,
+    "MobileNet_V3_Small": MobileNet_V3_Small
+}
 
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig):
@@ -10,7 +18,7 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
     # Initialize the model
-    model = VisionIKModel()
+    model = MODELS[cfg.model.name]()
 
     # Initialize the trainer with the model and configuration
     trainer = Trainer(model=model, cfg=cfg)

@@ -120,6 +120,7 @@ class Trainer:
         with torch.no_grad():
             for images, labels in self.val_loader:
                 images = images.to(self.device)
+                labels = (labels - self.dataset_mean_action_value) / self.dataset_std_action_value
                 labels = labels.to(self.device)
 
                 outputs = self.model(images)

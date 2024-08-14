@@ -1,15 +1,23 @@
 defaults:
   - _self_
 
+# Model choices: 
+#  ShuffleNet_V2_X0_5
+#  MobileNet_V3_Large
+#  MobileNet_V3_Small
+#  VisionIKModel
+model: 
+  name: "MobileNet_V3_Large" 
+  
 # Training configuration
 trainer:
   batch_size: 64
   learning_rate: 1e-4
   epochs: 100000
-  num_workers: 4
+  num_workers: 8
   project_name: "cobot/vision-ik"
   model_checkpoint_path: "vision_ik_model.pth"
-  checkpoint_interval: 1000  # Save checkpoint every 100 steps
+  checkpoint_interval: 20000  # Save checkpoint every 100 steps
   resume_checkpoint: null  # Path to checkpoint file to resume from
 
 # Dataset configuration

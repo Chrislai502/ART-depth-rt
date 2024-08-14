@@ -1,24 +1,11 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import transforms
+from torchvision import models, transforms
+
 
 class VisionIKModel(nn.Module):
     def __init__(self, kernel_size=3):
         super(VisionIKModel, self).__init__()
-
-        # # Load the pre-trained ShuffleNet_V2_X0_5 model with specific weights
-        # self.weights = models.ShuffleNet_V2_X0_5_Weights.IMAGENET1K_V1
-        # self.model = models.shufflenet_v2_x0_5(weights=self.weights)
-        # self.preprocess = self.weights.transforms()
-
-        # # Try Mobile Net Large and Small
-        # self.weights = models.MobileNet_V3_Large_Weights.IMAGENET1K_V2
-        # self.model = models.mobilenet_v3_large(weights=self.weights)
-        # self.preprocess = self.weights.transforms()
-
-        # self.weights = models.MobileNet_V3_Small_Weights.IMAGENET1K_V1
-        # self.model = models.mobilenet_v3_small(weights=self.weights)
-        # self.preprocess = self.weights.transforms()
 
         # Define the convolutional layers inspired by ShuffleNetV2
         self.conv1 = nn.Sequential(
@@ -63,15 +50,111 @@ class VisionIKModel(nn.Module):
             transforms.ToTensor()   
         ])
 
-
     def forward(self, x):
-        # x = self.preprocess(x)
-        # x = self.model(x)
         x = self.conv1(x)
         x = self.maxpool(x)
         x = self.stage2(x)
         x = self.stage3(x)
         x = self.stage4(x)
+
+        # Flatten the output of the last convolutional layer
+        x = x.view(x.size(0), -1)        
+
+        # Apply fully connected layers
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        return x
+    
+class ShuffleNet_V2_X0_5(nn.Module):
+    def __init__(self, kernel_size=3):
+        super(ShuffleNet_V2_X0_5, self).__init__()
+
+        # Load the pre-trained ShuffleNet_V2_X0_5 model with specific weights
+        self.weights = models.ShuffleNet_V2_X0_5_Weights.IMAGENET1K_V1
+        self.model = models.shufflenet_v2_x0_5(weights=self.weights)
+        self.preprocess = self.weights.transforms()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(1000, 512) # For Pre-trained Weights
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, 14)  # 14-dimensional output
+
+        self.preprocess_img = transforms.Compose([
+            transforms.Resize((48, 64)),
+            transforms.ToTensor()   
+        ])
+
+    def forward(self, x):
+        x = self.preprocess(x)
+        x = self.model(x)
+
+        # Flatten the output of the last convolutional layer
+        x = x.view(x.size(0), -1)        
+
+        # Apply fully connected layers
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        return x
+    
+class MobileNet_V3_Large(nn.Module):
+    def __init__(self, kernel_size=3):
+        super(MobileNet_V3_Large, self).__init__()
+
+        # Try Mobile Net Large and Small
+        self.weights = models.MobileNet_V3_Large_Weights.IMAGENET1K_V2
+        self.model = models.mobilenet_v3_large(weights=self.weights)
+        self.preprocess = self.weights.transforms()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(1000, 512) # For Pre-trained Weights
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, 14)  # 14-dimensional output
+
+        self.preprocess_img = transforms.Compose([
+            transforms.Resize((48, 64)),
+            transforms.ToTensor()   
+        ])
+
+    def forward(self, x):
+        x = self.preprocess(x)
+        x = self.model(x)
+
+        # Flatten the output of the last convolutional layer
+        x = x.view(x.size(0), -1)        
+
+        # Apply fully connected layers
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        return x
+    
+class MobileNet_V3_Small(nn.Module):
+    def __init__(self, kernel_size=3):
+        super(MobileNet_V3_Small, self).__init__()
+
+        # Try Mobile Net Large and Small
+        self.weights = models.MobileNet_V3_Small_Weights.IMAGENET1K_V1
+        self.model = models.mobilenet_v3_small(weights=self.weights)
+        self.preprocess = self.weights.transforms()
+
+        # Fully connected layers
+        self.fc1 = nn.Linear(1000, 512) # For Pre-trained Weights
+        self.fc2 = nn.Linear(512, 128)
+        self.fc3 = nn.Linear(128, 14)  # 14-dimensional output
+
+        self.preprocess_img = transforms.Compose([
+            transforms.Resize((48, 64)),
+            transforms.ToTensor()   
+        ])
+
+    def forward(self, x):
+        x = self.preprocess(x)
+        x = self.model(x)
 
         # Flatten the output of the last convolutional layer
         x = x.view(x.size(0), -1)        
