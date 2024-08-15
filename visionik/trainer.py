@@ -14,6 +14,7 @@ from visionik.dataset import IKDataset
 class Trainer:
     def __init__(self, model, cfg: DictConfig, resume_checkpoint=None):
         self.model = model
+        self.model_name = cfg.model.name
         self.epochs = cfg.trainer.epochs
         self.checkpoint_interval = cfg.trainer.checkpoint_interval
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,6 +134,7 @@ class Trainer:
     def save_checkpoint(self, path):
         checkpoint = {
             'model_state_dict': self.model.state_dict(),
+            'model_name': self.model_name,
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epoch': self.epochs,
             'step': self.step,
