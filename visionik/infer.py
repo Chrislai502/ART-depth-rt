@@ -1,8 +1,11 @@
 import torch
-from visionik.model import VisionIKModel
+from visionik.model import VisionIKModel, MobileNet_V3_Small
 from visionik.dataset import IKDataset
 from torchvision import transforms
 from PIL import Image
+from scipy.interpolate import splrep, splev # B Spline
+from scipy.interpolate import UnivariateSpline # Univariate Spline
+import numpy as np
 import os
 
 class VisionIKInference:
@@ -14,7 +17,7 @@ class VisionIKInference:
 
     def load_checkpoint(self, path):
         checkpoint = torch.load(path)
-        model = VisionIKModel()
+        model = MobileNet_V3_Small()
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
@@ -25,9 +28,24 @@ class VisionIKInference:
 
     def preprocess_image(self, image):
         # Load and preprocess the image
-        # image = IKDataset.transform_image(image_path)  # Assuming you have a similar function in IKDataset
-        image = image.unsqueeze(0)  # Add batch dimension
+        image = image.unsqueeze(0).to(self.device)  # Add batch dimension
         return image
+
+    def interpolate_trajectory(self, infer_outputs, type="Univariate", num_points=100):
+        infer_outputs = np.array(infer_outputs)
+        num_frames, num_dim = infer_outputs.shape
+        output_waypoints = np.zeros((num_points, num_dim))
+
+        for dim_idx in range(num_dim):
+            if type == "Univariate":
+                t_vals = np.linspace(0, 1, num_points)
+                us = UnivariateSpline(t_vals, infer_outputs[:, dim_idx], k=5)
+                output_waypoints[:, dim_idx] = us(t_vals)         
+            # elif type == "BSpline":
+            # elif type == "Bezier":
+            else:
+                raise ValueError("Invalid Interpolation Type")
+        return output_waypoints
 
     def run_inference(self, image):
         image = self.preprocess_image(image)
@@ -52,7 +70,6 @@ class VisionIKInference:
                 # Convert Image to RGB
                 image = img.convert('RGB')
                 image = self.model.preprocess_img(image)
-                image = image.to(self.device)
                 output = self.run_inference(image)
 
                 infer_outputs.append(output)
