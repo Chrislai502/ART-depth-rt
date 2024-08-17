@@ -34,6 +34,18 @@ class Trainer:
             val = True
         )
 
+        train_dataset = MOEIKDataset(
+            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'train'),
+            save_plots=dataset_cfg.save_plots,
+            stat_percentile_range=dataset_cfg.stat_percentile_range,
+            cfg=cfg.dataset
+        )
+        val_dataset = MOEIKDataset(
+            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'val'),
+            cfg=cfg.dataset,
+            val = True
+        )
+
         self.dataset_mean_action_value = train_dataset.mean_action_value
         self.dataset_std_action_value = train_dataset.std_action_value
 

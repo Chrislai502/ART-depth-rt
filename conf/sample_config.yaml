@@ -8,6 +8,9 @@ defaults:
 #  VisionIKModel
 model: 
   name: "MobileNet_V3_Small" 
+  train_joints: # Options: ["waist", "shoulder", "elbow", "forearm_roll", "wrist_angle", "wrist_rotate"]
+    - "waist"
+    - "shoulder"
   
 # Training configuration
 trainer:

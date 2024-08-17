@@ -134,8 +134,9 @@ class MobileNet_V3_Large(nn.Module):
         return x
     
 class MobileNet_V3_Small(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self, kernel_size=3, cfg=None):
         super(MobileNet_V3_Small, self).__init__()
+        length_output = len(cfg.train_joints) * 2 if cfg else 14# Left and Right
 
         # Try Mobile Net Large and Small
         self.weights = models.MobileNet_V3_Small_Weights.IMAGENET1K_V1
@@ -145,7 +146,7 @@ class MobileNet_V3_Small(nn.Module):
         # Fully connected layers
         self.fc1 = nn.Linear(1000, 512) # For Pre-trained Weights
         self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 14)  # 14-dimensional output
+        self.fc3 = nn.Linear(128, length_output)  # 14-dimensional output
 
         self.preprocess_img = transforms.Compose([
             transforms.Resize((48, 64)),

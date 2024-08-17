@@ -18,7 +18,7 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
     # Initialize the model
-    model = MODELS[cfg.model.name]()
+    model = MODELS[cfg.model.name](cfg.model)
 
     # Initialize the trainer with the model and configuration
     trainer = Trainer(model=model, cfg=cfg)
