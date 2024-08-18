@@ -38,9 +38,10 @@ class VisionIKInference:
 
         for dim_idx in range(num_dim):
             if type == "Univariate":
-                t_vals = np.linspace(0, 1, num_points)
-                us = UnivariateSpline(t_vals, infer_outputs[:, dim_idx], k=5)
-                output_waypoints[:, dim_idx] = us(t_vals)         
+                t_val = np.linspace(0, 1, num_frames)
+                t_val_ = np.linspace(0, 1, num_points)
+                us = UnivariateSpline(t_val, infer_outputs[:, dim_idx], k=5)
+                output_waypoints[:, dim_idx] = us(t_val_)      
             # elif type == "BSpline":
             # elif type == "Bezier":
             else:
