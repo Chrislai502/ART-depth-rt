@@ -29,6 +29,8 @@ pip install -e .
     python3 train.py
     ```
 
+**Note by Chris:** Training with resumption feature is still not functional via `resume_checkpoint` flag in the config. This is because Neptune expects local run metadata to be stored in `.neptune/` to be at root dir of program. However, `hydra` seems to have inherently directed all created files into `outputs/`, which is clean, but breaks this functionality. To be figured out by the next person!
+
 ## Inference
 
 ### 1. Loading the Model and Running Inference
@@ -77,50 +79,26 @@ for i, output in enumerate(outputs):
     print(f"Frame {i} Output: {output}")
 ```
 
-Also refer to 
+Also refer to the `vidgen_kitting_demo.py` from the [mobile-aloha](https://github.com/CollaborativeRobotics/mobile-aloha/blob/chris/vidgen_demo_kitting/aloha_scripts/vidgen_kitting_demo.py) repository for use of inferrence with gifs.
 
-### 4. Model Checkpoint
+## Model Checkpoint
 
-The model checkpoint is expected to contain:
-- `model_state_dict`: The state dictionary for the VisionIK model.
-- `mean`: Mean of the dataset used for normalization.
-- `std`: Standard deviation of the dataset used for normalization.
+The model checkpoint contains:
+- `model_state_dict`: Model State dictionary
+- `model_cfg`: hydra OmegaConf container to create model using hydra.
+- `optimizer_state_dict`: Optimizer state dictionary
+- `epoch`: Epochs trained
+- `step`: Steps trained
+- `mean`: The mean joint positions of the dataset this model is trained on
+- `std`: The std joint positions of the dataset this model is trained on
+- `neptune_run_id`: Neptune Run ID for resuming.
 
-        checkpoint = {
-            'model_state_dict': self.model.state_dict(),
-            'model_name': self.model_name,
-            'optimizer_state_dict': self.optimizer.state_dict(),
-            'epoch': self.epochs,
-            'step': self.step,
-            'mean': self.dataset_mean_action_value,
-            'std': self.dataset_std_action_value
-        }
 
 The `VisionIKInference` class automatically loads these parameters when initialized.
 
-### 5. Preprocessing and Unnormalizing
-
-The script applies preprocessing to input images and unnormalizes the output using the stored dataset statistics (mean and standard deviation). Make sure your dataset preprocessing aligns with the following expectations:
-
-- Input images should be in RGB format.
-- Preprocessing includes resizing and normalizing the images.
-
-### 6. Running the Script
-
-To run the inference directly from the command line, update the paths in the script:
-
-```bash
-python inference.py
-```
-
-Make sure to replace:
-
-- `/path/to/checkpoint.pth` with the path to your trained model checkpoint.
-- `/path/to/image.png` with the image you want to run inference on.
 
 ## Notes
 
-- The inference script assumes the presence of specific methods in the `IKDataset` and `VisionIKModel` classes, such as `transform_image` and `preprocess_img`. Customize these methods as needed based on your implementation.
 - The script supports both CPU and GPU inference.
 
 
