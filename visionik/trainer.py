@@ -12,12 +12,15 @@ from visionik.model import VisionIKModel
 from visionik.dataset import IKDataset
 
 class Trainer:
-    def __init__(self, model, cfg: DictConfig, resume_checkpoint=None):
-        self.model = model
-        self.model_name = cfg.model.name
+    def __init__(self, cfg: DictConfig):
+        self.cfg = cfg
+        self.resume_checkpoint = cfg.trainer.resume_checkpoint
         self.epochs = cfg.trainer.epochs
         self.checkpoint_interval = cfg.trainer.checkpoint_interval
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Create model instance
+        self.model = hydra.utils.instantiate(self.cfg.model)
         self.model.to(self.device)
 
         # Load Dataset
@@ -49,18 +52,25 @@ class Trainer:
         self.start_epoch = 0
         self.step = 0
 
-        # Initialize Neptune logger
-        self.run = neptune.init_run(
-            project=cfg.trainer.project_name, 
-            api_token=cfg.neptune.api_token
-        )
-
-        # Log hyperparameters
-        self.run["hyperparameters"] = stringify_unsupported(OmegaConf.to_container(cfg, resolve=True))
-
         # Resume from checkpoint if specified
-        if resume_checkpoint:
-            self.load_checkpoint(resume_checkpoint)
+        if self.resume_checkpoint:
+            self.neptune_run_id = self.load_checkpoint()
+
+            # Initialize Neptune logger
+            self.run = neptune.init_run(
+                with_id=self.neptune_run_id,
+                project=cfg.neptune.project_name, 
+                api_token=cfg.neptune.api_token
+            )
+        else:
+            self.run = neptune.init_run(
+                project=cfg.neptune.project_name, 
+                api_token=cfg.neptune.api_token
+            )
+            # Log hyperparameters
+            self.run["hyperparameters"] = stringify_unsupported(OmegaConf.to_container(cfg, resolve=True))
+            self.neptune_run_id = self.run["sys/id"].fetch()
+                
 
     def train(self):
         self.model.train()
@@ -99,6 +109,7 @@ class Trainer:
 
                     # Checkpoint the model every `n` steps
                     if self.step % self.checkpoint_interval == 0:
+                        print(f"Checkpointing model at epoch {epoch+1}, step {self.step}")
                         checkpoint_path = f"checkpoint_epoch_{epoch}_step_{self.step}.pth"
                         self.save_checkpoint(checkpoint_path)
 
@@ -134,52 +145,43 @@ class Trainer:
     def save_checkpoint(self, path):
         checkpoint = {
             'model_state_dict': self.model.state_dict(),
-            'model_name': self.model_name,
+            'model_cfg': OmegaConf.to_container(self.cfg.model, resolve=True),  # Save the model config
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epoch': self.epochs,
             'step': self.step,
             'mean': self.dataset_mean_action_value,
-            'std': self.dataset_std_action_value
+            'std': self.dataset_std_action_value,
+            'neptune_run_id': self.neptune_run_id
         }
         torch.save(checkpoint, path)
         self.run[f"ckpt/{path.split('/')[-1]}"].upload(path)
         print(f"Checkpoint saved to {path} and uploaded to Neptune.")
 
-    def load_checkpoint(self, path):
+    def load_checkpoint(self):
+        path = self.cfg.trainer.model_checkpoint_path
         checkpoint = torch.load(path)
+        # Rebuild the model configuration from the checkpoint
+        # model_cfg = OmegaConf.create(checkpoint['model_cfg'])
+        # self.model = hydra.utils.instantiate(model_cfg)
         self.model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Resumed training from checkpoint {self.cfg.trainer.model_checkpoint_path}.")
+
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.start_epoch = checkpoint['epoch']
         self.step = checkpoint['step']
-        self.full_dataset.mean_action_value = checkpoint['mean']
-        self.full_dataset.std_action_value = checkpoint['std']
+        self.dataset_mean_action_value = checkpoint['mean']
+        self.dataset_std_action_value = checkpoint['std']
         print(f"Resumed training from checkpoint {path}.")
-
-    def save_model(self, path=None):
-        if path is None:
-            path = "vision_ik_model.pth"
-        torch.save(self.model.state_dict(), path)
-        self.run["model_checkpoint"].upload(path)
-        print(f"Model saved to {path} and uploaded to Neptune.")
-
+        return checkpoint['neptune_run_id']
 @hydra.main(config_path="conf", config_name="config")
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
-    # Initialize model
-    model = VisionIKModel()
-
-    # Check if resuming from a checkpoint
-    resume_checkpoint = cfg.trainer.resume_checkpoint if "resume_checkpoint" in cfg.trainer else None
-
     # Initialize trainer
-    trainer = Trainer(model=model, cfg=cfg, resume_checkpoint=resume_checkpoint)
+    trainer = Trainer(cfg=cfg)
 
     # Train the model
     trainer.train()
-
-    # Save the trained model
-    trainer.save_model(cfg.trainer.model_checkpoint_path)
 
 if __name__ == "__main__":
     main()

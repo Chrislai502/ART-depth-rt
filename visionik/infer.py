@@ -1,20 +1,23 @@
 import torch
-from visionik.model import VisionIKModel
-from visionik.dataset import IKDataset
-from torchvision import transforms
+from visionik.model import MobileNet_V3_Small
+from torchvision.transforms import transforms
 from PIL import Image
-import os
+import hydra
 
 class VisionIKInference:
-    def __init__(self, checkpoint_path):
+    def __init__(self, checkpoint_path, cfg = None):
         # Load the checkpoint when initializing the class
+        self.cfg = cfg  # Store the configuration
         self.model, self.mean, self.std = self.load_checkpoint(checkpoint_path)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
 
     def load_checkpoint(self, path):
         checkpoint = torch.load(path)
-        model = VisionIKModel()
+        if self.cfg:
+            model = hydra.utils.instantiate(self.cfg.model)
+        else:
+            model = MobileNet_V3_Small()
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
 
@@ -26,7 +29,8 @@ class VisionIKInference:
     def preprocess_image(self, image):
         # Load and preprocess the image
         # image = IKDataset.transform_image(image_path)  # Assuming you have a similar function in IKDataset
-        image = image.unsqueeze(0)  # Add batch dimension
+        image = transforms.ToTensor()(image)
+        image = image.unsqueeze(0).to(self.device)  # Add batch dimension
         return image
 
     def run_inference(self, image):
@@ -64,13 +68,12 @@ class VisionIKInference:
                 frame_count += 1
         return infer_outputs
 
-        
-
 
 if __name__ == "__main__":
-    image_path = "/path/to/image.png"
-    checkpoint_path = "/path/to/checkpoint.pth"
-    
+    image_path = "../duck.jpg"
+    checkpoint_path = "/home/cobot/testing/Vision-ik/outputs/2024-08-22/21-43-21/checkpoint_epoch_0_step_1000.pth"
+    image = Image.open(image_path)
+
     inference_engine = VisionIKInference(checkpoint_path)
-    output = inference_engine.run_inference(image_path)
+    output = inference_engine.run_inference(image)
     print(f"Inference Output: {output}")

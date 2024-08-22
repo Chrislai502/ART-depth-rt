@@ -7,7 +7,7 @@ defaults:
 #  MobileNet_V3_Small
 #  VisionIKModel
 model: 
-  name: "MobileNet_V3_Small" 
+  _target_: "visionik.model.MobileNet_V3_Small"  # Specify the model class path here
   
 # Training configuration
 trainer:
@@ -15,10 +15,9 @@ trainer:
   learning_rate: 1e-4
   epochs: 100000
   num_workers: 8
-  project_name: "cobot/vision-ik"
   model_checkpoint_path: "vision_ik_model.pth"
-  checkpoint_interval: 100000  # Save checkpoint. Takes that much to converge anyways
-  resume_checkpoint: null  # Path to checkpoint file to resume from
+  checkpoint_interval: 100000  # Save checkpoint frequency. Takes that much to converge anyways
+  resume_checkpoint: false  # Path to checkpoint file to resume from
 
 # Dataset configuration
 dataset:
@@ -37,9 +36,9 @@ dataset:
       distortion_scale: 0.05
       p: 0.0
     ElasticTransform: 
-      alpha: 50.0
+      alpha: 100.0
       sigma: 7.0
-      p: 0.0
+      p: 0.4
     RandomResizedCrop:
       crop_scale: 0.999
       scale: [0.999, 1.0]
@@ -51,4 +50,5 @@ dataset:
 
 # Neptune configuration
 neptune:
+  project_name: "cobot/vision-ik"
   api_token: "<Neptune API Token>"

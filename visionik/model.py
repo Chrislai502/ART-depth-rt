@@ -4,7 +4,7 @@ from torchvision import models, transforms
 
 
 class VisionIKModel(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self):
         super(VisionIKModel, self).__init__()
 
         # Define the convolutional layers inspired by ShuffleNetV2
@@ -68,7 +68,7 @@ class VisionIKModel(nn.Module):
         return x
     
 class ShuffleNet_V2_X0_5(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self):
         super(ShuffleNet_V2_X0_5, self).__init__()
 
         # Load the pre-trained ShuffleNet_V2_X0_5 model with specific weights
@@ -101,7 +101,7 @@ class ShuffleNet_V2_X0_5(nn.Module):
         return x
     
 class MobileNet_V3_Large(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self):
         super(MobileNet_V3_Large, self).__init__()
 
         # Try Mobile Net Large and Small
@@ -134,7 +134,7 @@ class MobileNet_V3_Large(nn.Module):
         return x
     
 class MobileNet_V3_Small(nn.Module):
-    def __init__(self, kernel_size=3):
+    def __init__(self):
         super(MobileNet_V3_Small, self).__init__()
 
         # Try Mobile Net Large and Small
