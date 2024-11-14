@@ -1,7 +1,9 @@
+from typing import List
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
-
+from omegaconf import DictConfig
 
 class VisionIKModel(nn.Module):
     def __init__(self):
@@ -165,3 +167,70 @@ class MobileNet_V3_Small(nn.Module):
         x = self.fc3(x)
 
         return x
+    
+class LightDepthEncoder(nn.Module):
+    def __init__(self, cfg: DictConfig):
+        self.cfg = cfg
+        
+        # create the initial encoder
+        # first step in processing the image:
+        # IMAGE ---> [INITIAL_CONV -> RELU ] ---> IMAGE'
+        # image goes through initial convolution, gets transformed into image prime
+        init_encoder_in_channels = cfg.initial_encoder_in_channels
+        init_encoder_out_channels = cfg.initial_encoder_out_channels
+        init_encoder_kernel_size = cfg.initial_encoder_kernel_size
+        init_encoder_stride = cfg.initial_encoder_stride
+        init_encoder_padding = cfg.initial_encoder_padding
+        self.initial_conv = nn.Conv2d(init_encoder_in_channels, 
+                                         init_encoder_out_channels, 
+                                         init_encoder_kernel_size, 
+                                         init_encoder_stride, 
+                                         init_encoder_padding, 
+                                         bias=False)
+        self.relu = nn.ReLU(inplace=True)
+        
+        # creating the rest of the encoder, which is several convs + leaky relu layers
+        self.convs = nn.ModuleList()
+        num_enc_channels_in = cfg.num_enc_channels_in
+        padding_required_for_same_size = self.get_padding_for_conv_same_output(cfg.kernel_size, cfg.stride)
+                
+        for i, (channel_in, channel_out) in enumerate(zip(num_enc_channels_in[:-1], num_enc_channels_in[1:])):
+            layer = nn.Sequential(
+                nn.Conv2d(channel_in, channel_out, kernel_size=cfg.kernel_size, stride=cfg.stride, padding=cfg.padding, bias=True),
+                nn.LeakyReLU(cfg.leaky_relu_alpha, inplace=True),
+                nn.Conv2d(channel_out, channel_out, kernel_size=cfg.kernel_size, stride=cfg.stride, padding=padding_required_for_same_size, bias=True),
+                nn.LeakyReLU(cfg.leaky_relu_alpha, inplace=True)
+            )
+            self.convs.append(layer)
+        
+        # initializing all conv layers using kaiming initialization
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
+    
+    def forward(self, x) -> List[torch.Tensor]:
+        # Visualization of forward pass. First pass through the initial convolution. 
+        # Then, pass through all subsequent convolutional layers in the encoder.
+        # |__|
+        # |__|  --->  [INITIAL CONV -> RELU]  ---> IMAGE' ---> ENCODER (N * [CONV -> LEAKY RELU])
+        # |__|
+        # IMAGE                               
+        # Returns: all intermediate features. 
+        # Why return all features? Because decoder uses intermediate features in fusion.
+        features = []
+        x = self.initial_conv(x)
+        x = self.relu(x)
+        features.append(x)
+        for conv in self.convs:
+            x = conv(x)
+            features.append(x)
+        return features
+            
+    def get_padding_for_conv_same_output(self, kernel_size, stride=1) -> int:
+        # Given some kernel size and stride, calculate the padding to ensure that the 
+        # output of the convolution is the same size as the input
+        return ((stride - 1) + kernel_size - 1) // 2
+    
+class LightDepthModel(nn.Module):
+    def __init__(self):
+        pass

@@ -1,0 +1,11 @@
+__target__: "visionik.model.depth_encoder.DepthEncoder"
+initial_encoder_in_channels: 3
+initial_encoder_out_channels: 64
+initial_encoder_kernel_size: 7
+initial_encoder_stride: 2 
+initial_encoder_padding: 3
+num_enc_channels_in: [64, 64, 128, 192]
+kernel_size: 3
+stride: 2
+padding: 1
+leaky_relu_alpha: 0.1
