@@ -2,6 +2,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 
+class BaseModel(nn.Module):
+    def __init__(self):
+        super(BaseModel, self).__init__()
+    
+    def forward(self, x):
+    
+    def preprocess(self, x):
+        
+    def postprocess(self, x):
+        
+        
 
 class VisionIKModel(nn.Module):
     def __init__(self):

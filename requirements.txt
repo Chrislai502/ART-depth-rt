@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu124
+gradio_imageslider
+gradio==4.14.0
+torch==2.5.1
+torchvision
+opencv-python
+huggingface_hub
+xformers

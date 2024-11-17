@@ -1,31 +1,26 @@
+# setup.py
 from setuptools import setup, find_packages
 
 setup(
-    name='visionik',
+    name='art-depth',
     version='0.1.0',
     packages=find_packages(),
-    install_requires=[
-        # Add your dependencies here
-        'numpy',
-        'torch',
-        # other dependencies
-    ],
     entry_points={
         'console_scripts': [
-            # If you want to create command-line tools
-            # 'vision-ik-train=vision_ik.train:main', # Assuming `train.py` has a main function
+            # Uncomment and customize if you want to add command-line tools
+            # 'art-depth-train=art_depth.train:main', 
         ],
     },
     author='Chris Lai',
-    author_email='cl@co.bot',
-    description='A brief description of Vision-ik package',
+    author_email='chrislai_502@berkeley.edu',
+    description='A brief description of the art-depth package',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url='https://github.com/yourusername/vision-ik',
+    url='https://github.com/Chrislai502/ART-depth-rt',
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
     ],
-    python_requires='>=3.8',
+    python_requires='>=3.11',
 )
