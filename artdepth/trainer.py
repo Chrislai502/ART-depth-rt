@@ -23,8 +23,9 @@ class Trainer:
         self.model.to(self.device)
         
         # Create DataLoaders
-        self.train_loader = MixedARTKITTINYU(cfg.dataset, "train", cfg.dataset.sample_ratio, device=self.device).data
-        self.val_loader = DepthDataLoader(cfg.dataset, 'online_eval', device=self.device).data
+        # self.train_loader = MixedARTKITTINYU(cfg.dataset, "train", cfg.dataset.sample_ratio, device=self.device).data
+        self.train_loader = DepthDataLoader(cfg.dataset, cfg.dataset.art.dataset, "train", device=self.device).data
+        self.val_loader = DepthDataLoader(cfg.dataset, cfg.dataset.art.dataset, 'online_eval', device=self.device).data
 
         # Loss function and optimizer
         self.criterion = nn.MSELoss()

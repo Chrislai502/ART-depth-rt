@@ -2,10 +2,11 @@ import os
 from tqdm import tqdm
 
 # Define dataset path and type
-dataset_path = "/home/art-chris/testing/ART-depth-rt/data/ART/"
+dataset_path = "/home/art-chris/testing/ART-depth-rt/data/datasets/ART/"
 track = "IMS"
 bag = "rosbag2_2024_09_04-13_17_48_9"
 train_eval = "eval" # or "eval"
+truth_type = 'dense_depth' # or "groundtruth_depth"
 
 dataset_path = os.path.join(dataset_path, track, bag)
 dataset_type = "art"
@@ -47,7 +48,7 @@ with open(output_path, "w") as f:
                 # continue  # Skip if focal length parsing fails
 
         # Write formatted data to output file
-        f.write(f"{bag}/image/{os.path.basename(image_path)} {bag}/groundtruth_depth/{os.path.basename(image_path)} {avg_focal:.4f}\n")
+        f.write(f"{bag}/image/{os.path.basename(image_path)} {bag}/{truth_type}/{os.path.basename(image_path)} {avg_focal:.4f}\n")
         print(f"Processed image: {os.path.basename(image_path)} with focal length {avg_focal:.4f}")
 
 print("Processing complete.")
