@@ -363,10 +363,14 @@ class DataLoadPreprocess(Dataset):
             image = np.asarray(image, dtype=np.float32) / 255.0
             depth_gt = np.asarray(depth_gt, dtype=np.float32)
             depth_gt = np.expand_dims(depth_gt, axis=2)
+
             # Scale depth values depending on the dataset
             if self.config.dataset == 'nyu':
                 depth_gt /= 1000.0
             else:
+                # Converting from uint16 to float
+                depth_gt /= 256.0
+                # Normalizing to 0-1
                 depth_gt /= 256.0
 
             # Apply random crop and random translation if enabled in config
