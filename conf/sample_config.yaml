@@ -35,15 +35,18 @@ dataset:
   batch_size: 4
   workers: 8
   use_shared_dict: false
+  sample_ratio: # For MixedARTKITTINYU
+    art: 1
+    kitti: 1
 
   augmentations:
     apply: true
     probability: 1.0
-
-
+    
+    # random crop
     random_crop: False
 
-    # Jitter
+    # color jitter
     jitter:
       brightness: 0.2
       contrast: 0.2

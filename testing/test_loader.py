@@ -1,7 +1,4 @@
-import argparse
-from artdepth.utils.config import get_config
 from artdepth.dataset import MixedARTKITTINYU, DepthDataLoader
-from pprint import pprint
 import torch
 import os
 
@@ -114,21 +111,15 @@ def test_data_loading(config, dataset_class, sample_ratio=None, mode="train"):
 
 @hydra.main(config_path="../conf", config_name="config")
 def main(cfg: DictConfig):
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Test data loading for MixedARTKITTINYU datasets.")
-    parser.add_argument("-m", "--model", type=str, default="zoedepth", help="Model name (default: synunet)")
-    parser.add_argument("-d", "--dataset", type=str, default='mix', help="Dataset name (default: mix)")
-    parser.add_argument("--batch_size", type=int, default=4, help="Batch size for testing (default: 4)")
-    parser.add_argument("--num_workers", type=int, default=2, help="Number of workers for data loading (default: 2)")
-    parser.add_argument("-o", "--mode", type=str, default="train", help="train or online_eval")
 
-    args, unknown_args = parser.parse_known_args()
+    mode = "train" 
+    # mode = "online_eval"
     
     fix_random_seed(43)
     
     print(OmegaConf.to_yaml(cfg))
-    test_data_loading(cfg, MixedARTKITTINYU, {'art': 1, 'kitti': 1}, mode = args.mode)
-    # test_data_loading(config=cfg, dataset_class=DepthDataLoader, mode=args.mode)
+    test_data_loading(cfg, MixedARTKITTINYU, cfg.dataset.sample_ratio, mode = mode) # Mixed Dataset
+    # test_data_loading(config=cfg, dataset_class=DepthDataLoader, mode=args.mode) # Single Dataset
 
 if __name__ == "__main__":
     main()

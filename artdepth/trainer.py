@@ -8,7 +8,7 @@ import os
 from tqdm import tqdm
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from artdepth.dataset import IKDataset
+from artdepth.dataset import MixedARTKITTINYU, DepthDataLoader
 
 class Trainer:
     def __init__(self, cfg: DictConfig):
@@ -21,28 +21,10 @@ class Trainer:
         # Create model instance
         self.model = hydra.utils.instantiate(self.cfg.model)
         self.model.to(self.device)
-
-        # Load Dataset
-        dataset_cfg = cfg.dataset
-        train_dataset = IKDataset(
-            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'train'),
-            save_plots=dataset_cfg.save_plots,
-            stat_percentile_range=dataset_cfg.stat_percentile_range,
-            cfg=cfg.dataset
-        )
-        val_dataset = IKDataset(
-            dataset_dir=os.path.join(dataset_cfg.dataset_dir, 'val'),
-            cfg=cfg.dataset,
-            val = True
-        )
-
-        self.dataset_mean_action_value = train_dataset.mean_action_value
-        self.dataset_std_action_value = train_dataset.std_action_value
-
-        # Train-validation split
+        
         # Create DataLoaders
-        self.train_loader = DataLoader(train_dataset, batch_size=cfg.trainer.batch_size, shuffle=True, num_workers=cfg.trainer.num_workers)
-        self.val_loader = DataLoader(val_dataset, batch_size=cfg.trainer.batch_size, shuffle=False)
+        self.train_loader = MixedARTKITTINYU(cfg.dataset, "train", cfg.dataset.sample_ratio, device=self.device).data
+        self.val_loader = DepthDataLoader(cfg.dataset, 'online_eval', device=self.device).data
 
         # Loss function and optimizer
         self.criterion = nn.MSELoss()

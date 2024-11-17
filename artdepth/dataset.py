@@ -1,27 +1,3 @@
-# MIT License
-
-# Copyright (c) 2022 Intelligent Systems Lab Org
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
-# File author: Shariq Farooq Bhat
-
 # This file is partly inspired from BTS (https://github.com/cleinc/bts/blob/master/pytorch/bts_dataloader.py); author: Jin Han Lee
 
 import itertools
@@ -32,15 +8,10 @@ import numpy as np
 import cv2
 import torch
 import torch.nn as nn
-from artdepth.utils.easydict import EasyDict as edict
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.transforms import v2
-from pprint import pprint
-from artdepth.utils.config import change_dataset
-
-# from .preprocess import CropParams, get_white_border, get_black_border
 
 
 def _is_pil_image(img):
@@ -220,9 +191,10 @@ class SampleRatioAwareDataLoader(object):
         return self.dataloader_size
 
 class MixedARTKITTINYU(object):
-    def __init__(self, config, mode, sample_ratio:dict =None, device='cpu', **kwargs):
-        
+    def __init__(self, config, mode, sample_ratio =None, device='cpu', **kwargs):
+
         if sample_ratio is None:
+            
             sample_ratio = {
                 'kitti': 1,
                 'art' : 1,
@@ -231,22 +203,6 @@ class MixedARTKITTINYU(object):
 
         # Dataset Configurations
         self.config = config
-        conf_list = {}
-        
-        # for k in sample_ratio.keys():
-        #     conf = getattr(config, k)
-        #     if conf is None:
-        #         raise ValueError(f"Dataset {k} is not defined in config")
-        #     conf_list[k] = conf
-        # print(f"Dataset conf keys: {conf_list.keys()}")
-        # Testing Dataset
-        # art_test_conf = edict(config.art)
-
-        # # Make art_track2 default for testing
-        # self.config = config = art_test_conf
-        # img_size = self.config.get("img_size", None)
-        # img_size = img_size if self.config.get("do_input_resize", False) else None
-        # print(f"img_size: {img_size}")
         
         if mode == 'train':
             dataloaders = {}
@@ -256,31 +212,7 @@ class MixedARTKITTINYU(object):
             # Ratio Aware Dataloader
             self.data = SampleRatioAwareDataLoader(dataloaders, ratios=sample_ratio)
         else:
-            self.data = DepthDataLoader(art_test_conf, 'art', mode, device=device).data
-
-class MixedNYUKITTI(object):
-    def __init__(self, config, mode, device='cpu', **kwargs):
-        config = edict(config)
-        config.workers = config.workers // 2
-        self.config = config
-        nyu_conf = change_dataset(edict(config), 'nyu')
-        kitti_conf = change_dataset(edict(config), 'kitti')
-
-        # make nyu default for testing
-        self.config = config = nyu_conf
-        img_size = self.config.get("img_size", None)
-        img_size = img_size if self.config.get(
-            "do_input_resize", False) else None
-        if mode == 'train':
-            nyu_loader = DepthDataLoader(
-                nyu_conf, mode, device=device, transform=preprocessing_transforms(mode, size=img_size)).data
-            kitti_loader = DepthDataLoader(
-                kitti_conf, mode, device=device, transform=preprocessing_transforms(mode, size=img_size)).data
-            # It has been changed to repetitive roundrobin
-            self.data = RepetitiveRoundRobinDataLoader(
-                nyu_loader, kitti_loader)
-        else:
-            self.data = DepthDataLoader(nyu_conf, mode, device=device).data
+            self.data = DepthDataLoader(self.config, 'art', mode, device=device).data
 
 
 def remove_leading_slash(s):
