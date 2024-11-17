@@ -1,4 +1,4 @@
-from art-depth.trainer import Trainer
+from artdepth.trainer import Trainer
 import hydra
 from omegaconf import DictConfig, OmegaConf
 

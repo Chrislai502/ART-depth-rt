@@ -8,7 +8,7 @@ import os
 from tqdm import tqdm
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from art-depth.dataset import IKDataset
+from artdepth.dataset import IKDataset
 
 class Trainer:
     def __init__(self, cfg: DictConfig):

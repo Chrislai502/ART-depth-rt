@@ -1,4 +1,4 @@
-datasets/*
+datasets
 outputs/
 config.yaml
 *.jpg

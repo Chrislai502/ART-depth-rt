@@ -2,11 +2,8 @@ defaults:
   - _self_
 
 # Model choices: 
-#  ShuffleNet_V2_X0_5
-#  MobileNet_V3_Large
-#  MobileNet_V3_Small
 model: 
-  __target__: "art-depth.model.depth_encoder.DepthEncoder"
+  __target__: "artdepth.model.depth_encoder.DepthEncoder"
   initial_encoder_in_channels: 3
   initial_encoder_out_channels: 64
   initial_encoder_kernel_size: 7
@@ -25,40 +22,88 @@ trainer:
   learning_rate: 1e-4
   epochs: 100000
   num_workers: 8
-  model_checkpoint_path: "vision_ik_model.pth"
+  model_checkpoint_path: "depth_model.pth"
   checkpoint_interval: 100000  # Save checkpoint frequency. Takes that much to converge anyways
   resume_checkpoint: false  # Path to checkpoint file to resume from
+
+ROOT_DIR: "/home/art-chris/testing/ART-depth-rt/data" # Dataset Root
 
 # Dataset configuration
 dataset:
   dataset_dir: "Absolute path to dataset directory"
   save_plots: false
-  stat_percentile_range: [1, 99]
+  batch_size: 4
+  workers: 8
+  use_shared_dict: false
+
   augmentations:
     apply: true
-    ColorJitter:
-      brightness: 0.15
+    probability: 1.0
+
+
+    random_crop: False
+
+    # Jitter
+    jitter:
+      brightness: 0.2
       contrast: 0.2
-      saturation: 0.2
-      hue: 0.1
-      p: 0.3
-    RandomPerspective: 
-      distortion_scale: 0.05
-      p: 0.0
-    ElasticTransform: 
-      alpha: 100.0
-      sigma: 7.0
-      p: 0.4
-    RandomResizedCrop:
-      crop_scale: 0.999
-      scale: [0.999, 1.0]
-      ratio: [0.999, 1.01]
-      p: 0.0
-    JPEGCompression:
-      quality_range: [80, 95]
-      p: 0.5
+      saturation: 0.1
+      hue: 0.2
+    
+    # random rotate
+    do_random_rotate: True
+    degree: 1.0
+
+    # random translate
+    random_translate: False
+    translate_prob: 0.2
+    max_translation: 100
+
+
+  art:
+    dataset: "art"
+    track: "IMS"
+    min_depth: 0.01
+    max_depth: 120.0
+    bag : "rosbag2_2024_09_04-13_17_48_9"
+    data_path: "${ROOT_DIR}/datasets/ART/"
+    gt_path: "${ROOT_DIR}/datasets/ART/"
+    filenames_file: "${ROOT_DIR}/data_utils/art_eval_IMS_rosbag2_2024_09_04-13_17_48_9_filenames.txt"
+    input_height: 710
+    input_width: 1018
+    data_path_eval: "${ROOT_DIR}/datasets/ART/"
+    gt_path_eval: "${ROOT_DIR}/datasets/ART/"
+    filenames_file_eval: "${ROOT_DIR}/data_utils/art_eval_IMS_rosbag2_2024_09_04-13_17_48_9_filenames.txt"
+    min_depth_eval: 1e-3
+    max_depth_eval: 120.0
+    crop_remain: 160
+    do_art_crop: True
+    do_kb_crop: False
+    garg_crop: False
+    eigen_crop: False
+    use_right: False
+
+  kitti:
+    dataset: "kitti"
+    min_depth: 1e-3
+    max_depth: 120.0
+    data_path: "${ROOT_DIR}/Kitti/raw_data"
+    gt_path: "${ROOT_DIR}/Kitti/data_depth_annotated/train"
+    filenames_file: "${ROOT_DIR}/data_utils/art_eval_IMS_rosbag2_2024_09_04-13_17_48_9_filenames.txt"
+    input_height: 352
+    input_width: 1216
+    data_path_eval: "${ROOT_DIR}/Kitti/raw_data"
+    gt_path_eval: "${ROOT_DIR}/Kitti/data_depth_annotated/train"
+    filenames_file_eval: "${ROOT_DIR}/data_utils/art_eval_IMS_rosbag2_2024_09_04-13_17_48_9_filenames.txt"
+    min_depth_eval: 1e-3
+    max_depth_eval: 120.0
+    do_kb_crop: True
+    do_art_crop: False
+    garg_crop: True
+    eigen_crop: False
+    use_right: False
 
 # Neptune configuration
 neptune:
-  project_name: "cobot/vision-ik"
+  project_name: "roar/depth-estimation"
   api_token: "<Neptune API Token>"

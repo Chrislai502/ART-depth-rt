@@ -1,4 +1,4 @@
-name: art-depth
+name: artdepth
 channels:
   - defaults
 dependencies:
@@ -15,7 +15,6 @@ dependencies:
   - ncurses=6.4=h6a678d5_0
   - openssl=3.0.14=h5eee18b_0
   - pip=24.0=py310h06a4308_0
-  - python=3.10.14=h955ad1f_1
   - readline=8.2=h5eee18b_0
   - setuptools=72.1.0=py310h06a4308_0
   - sqlite=3.45.3=h5eee18b_0
@@ -111,4 +110,4 @@ dependencies:
       - urllib3==2.2.2
       - webcolors==24.8.0
       - websocket-client==1.8.0
-prefix: /home/weixun/anaconda3/envs/art-depth
+prefix: /home/weixun/anaconda3/envs/artdepth
