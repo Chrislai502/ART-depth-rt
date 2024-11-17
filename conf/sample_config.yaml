@@ -5,10 +5,20 @@ defaults:
 #  ShuffleNet_V2_X0_5
 #  MobileNet_V3_Large
 #  MobileNet_V3_Small
-#  VisionIKModel
 model: 
-  _target_: "visionik.model.MobileNet_V3_Small"  # Specify the model class path here
-  
+  __target__: "art-depth.model.depth_encoder.DepthEncoder"
+  initial_encoder_in_channels: 3
+  initial_encoder_out_channels: 64
+  initial_encoder_kernel_size: 7
+  initial_encoder_stride: 2 
+  initial_encoder_padding: 3
+  num_enc_channels_in: [64, 64, 128, 192]
+  kernel_size: 3
+  stride: 2
+  padding: 1
+  leaky_relu_alpha: 0.1
+
+
 # Training configuration
 trainer:
   batch_size: 40

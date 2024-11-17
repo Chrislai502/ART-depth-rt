@@ -1,4 +1,4 @@
-from visionik.trainer import Trainer
+from art-depth.trainer import Trainer
 import hydra
 from omegaconf import DictConfig, OmegaConf
 

@@ -1,10 +1,10 @@
 import torch
-from visionik.model import MobileNet_V3_Small
+from art-depth.model import MobileNet_V3_Small
 from torchvision.transforms import transforms
 from PIL import Image
 import hydra
 
-class VisionIKInference:
+class ARTDepthInference:
     def __init__(self, checkpoint_path, cfg = None):
         # Load the checkpoint when initializing the class
         self.cfg = cfg  # Store the configuration
@@ -74,6 +74,6 @@ if __name__ == "__main__":
     checkpoint_path = "/home/cobot/testing/Vision-ik/outputs/2024-08-22/21-43-21/checkpoint_epoch_0_step_1000.pth"
     image = Image.open(image_path)
 
-    inference_engine = VisionIKInference(checkpoint_path)
+    inference_engine = ARTDepthInference(checkpoint_path)
     output = inference_engine.run_inference(image)
     print(f"Inference Output: {output}")

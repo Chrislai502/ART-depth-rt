@@ -8,8 +8,7 @@ import os
 from tqdm import tqdm
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from visionik.model import VisionIKModel
-from visionik.dataset import IKDataset
+from art-depth.dataset import IKDataset
 
 class Trainer:
     def __init__(self, cfg: DictConfig):

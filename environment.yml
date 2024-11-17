@@ -1,4 +1,4 @@
-name: visionik
+name: art-depth
 channels:
   - defaults
 dependencies:
@@ -111,4 +111,4 @@ dependencies:
       - urllib3==2.2.2
       - webcolors==24.8.0
       - websocket-client==1.8.0
-prefix: /home/weixun/anaconda3/envs/visionik
+prefix: /home/weixun/anaconda3/envs/art-depth

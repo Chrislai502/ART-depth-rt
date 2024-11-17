@@ -14,7 +14,7 @@
     # Currently, Just test for a single subtask
 
 import torch
-from visionik.infer import VisionIKInference
+from visionik.infer import ARTDepthInference
 from aloha_scripts.robot_utils import move_grippers # requires aloha
 from aloha_scripts.real_env import make_real_env # requires aloha
 
