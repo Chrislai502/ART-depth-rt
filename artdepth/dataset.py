@@ -1,3 +1,27 @@
+# MIT License
+
+# Copyright (c) 2022 Intelligent Systems Lab Org
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# File author: Shariq Farooq Bhat
+
 # This file is partly inspired from BTS (https://github.com/cleinc/bts/blob/master/pytorch/bts_dataloader.py); author: Jin Han Lee
 
 import itertools
@@ -8,10 +32,16 @@ import numpy as np
 import cv2
 import torch
 import torch.nn as nn
-from PIL import Image
+import torch.utils.data.distributed
+from artdepth.utils.easydict import EasyDict as edict
+from PIL import Image, ImageOps
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.transforms import v2
+from artdepth.DepthAnything.metric_depth.zoedepth.models.builder import build_model
+
+from artdepth.utils.config import change_dataset
+from artdepth.utils.config import change_dataset, get_config, ALL_EVAL_DATASETS, ALL_INDOOR, ALL_OUTDOOR
 
 
 def _is_pil_image(img):
@@ -22,14 +52,14 @@ def _is_numpy_image(img):
     return isinstance(img, np.ndarray) and (img.ndim in {2, 3})
 
 
-def preprocessing_transforms(mode, config, **kwargs):
+def preprocessing_transforms(mode, config = None, **kwargs):
     return transforms.Compose([
         ToTensor(mode=mode, config=config, **kwargs)
     ])
 
 
 class DepthDataLoader(object):
-    def __init__(self, config, dataset_type, mode, device='cpu', transform=None, **kwargs):
+    def __init__(self, config, mode, device='cpu', transform=None, **kwargs):
         """
         Data loader for depth datasets
 
@@ -41,17 +71,24 @@ class DepthDataLoader(object):
         """
 
         self.config = config
+
         img_size = self.config.get("img_size", None)
         img_size = img_size if self.config.get(
             "do_input_resize", False) else None
 
         if transform is None:
-            transform = preprocessing_transforms(mode, self.config.augmentations, size=img_size)
+            transform = preprocessing_transforms(mode, size=img_size, config=config)
 
         if mode == 'train':
 
-            self.training_samples = DataLoadPreprocess(self.config, dataset_type, mode, transform=transform, device=device)
-            self.train_sampler = None
+            self.training_samples = DataLoadPreprocess(config, mode, transform=transform, device=device)
+
+            if config.distributed:
+                self.train_sampler = torch.utils.data.distributed.DistributedSampler(
+                    self.training_samples)
+            else:
+                self.train_sampler = None
+
             self.data = DataLoader(self.training_samples,
                                    batch_size=config.batch_size,
                                    shuffle=(self.train_sampler is None),
@@ -62,8 +99,12 @@ class DepthDataLoader(object):
                                    sampler=self.train_sampler)
 
         elif mode == 'online_eval':
-            self.testing_samples = DataLoadPreprocess(config, dataset_type, mode, transform=transform)
-            self.eval_sampler = None
+            self.testing_samples = DataLoadPreprocess(config, mode, transform=transform)
+            if config.distributed:  # redundant. here only for readability and to be more explicit
+                # Give whole test set to all processes (and report evaluation only on one) regardless
+                self.eval_sampler = None
+            else:
+                self.eval_sampler = None
             self.data = DataLoader(self.testing_samples, 1,
                                    shuffle=kwargs.get("shuffle", False),
                                    num_workers=1,
@@ -117,103 +158,199 @@ class SampleRatioAwareDataLoader(object):
     This dataloader samples from multiple datasets according to specified ratios.
     If a dataset is exhausted before others, it resets (restarts) so the ratios are maintained.
     '''
-    def __init__(self, dataloaders:dict, ratios:dict):
+
+    def __init__(self, dataloaders:dict, normalized_ratios:dict):
+        
         self.dataloaders = dataloaders
 
         # Normalize the ratios
-        tot = sum(ratios.values())
-        min_ratio = min(ratios.values())
-        self.normalized_ratios = {key: value / tot for key, value in ratios.items()}
-        ratios = {key: value / min_ratio for key, value in ratios.items()} # Make the smallest ratio 1
+        self.normalized_ratios = normalized_ratios
 
-        # Determine the smallest dataset in terms of length
+        # # Determine the smallest dataset in terms of length
         self.smallest_dataset_key = min(self.dataloaders, key=lambda k: len(self.dataloaders[k]))
         self.smallest_dataset_len = len(self.dataloaders[self.smallest_dataset_key])
 
-        # Logging some dataset metrics
-        num_samples = 0
-        num_batches = 0
-        for k in self.dataloaders.keys():
-            loader = self.dataloaders[k]
-            print("Dataset {} has {} samples, {} batches".format(k, len(loader)* loader.batch_size, len(loader)))
-            num_samples += len(loader) * loader.batch_size
-            num_batches += len(loader)
-
-        # Calculating Dataloader size
-        self.dataloader_size = int(sum([v * self.smallest_dataset_len for v in ratios.values()])) # dataloader size
+        # # Calculating Dataloader size
+        self.dataloader_size = int(sum([v * self.smallest_dataset_len for v in normalized_ratios.values()])) # dataloader size
 
         # Whole dataset will have this many samples
-        print("Whole Unnormalized dataset will have total {} samples and {} batches".format(num_samples, num_batches))
         print("Dataloader Presumed Normalized dataset will have total {} batches".format(self.dataloader_size))
-        
-        # print("DEBUG: Smallest dataset is: {}".format(self.smallest_dataset_key))
-        # print("DEBUG: Length of smallest dataset is: {}".format(self.smallest_dataset_len))
-        # print("DEBUG: Dataloader size is: {}".format(self.dataloader_size))
-        print("DEBUG: Ratios are: {}".format(ratios))
+        print("DEBUG: Normalized Ratios are: {}".format(normalized_ratios))
 
-    def ratio_aware_repetitive_roundrobin(self):
-        """
-        cycles through iterables but sample wise
-        first yield first sample from first iterable then first sample from second iterable and so on
-        then second sample from first iterable then second sample from second iterable and so on
+    @torch.no_grad()
+    def infer(model, images, **kwargs):
 
-        If one iterable is shorter than the others, it is repeated until all iterables are exhausted
-        repetitive_roundrobin('ABC', 'D', 'EF') --> A D E B D F C D E
+        def get_depth_from_prediction(pred):
+            if isinstance(pred, torch.Tensor):
+                pred = pred  # pass
+            elif isinstance(pred, (list, tuple)):
+                pred = pred[-1]
+            elif isinstance(pred, dict):
+                pred = pred['metric_depth'] if 'metric_depth' in pred else pred['out']
+            else:
+                raise NotImplementedError(f"Unknown output type {type(pred)}")
+            return pred
+
+        pred1 = model(images, **kwargs)
+        pred1 = get_depth_from_prediction(pred1)
+
+        pred2 = model(torch.flip(images, [3]), **kwargs)
+        pred2 = get_depth_from_prediction(pred2)
+        pred2 = torch.flip(pred2, [3])
+
+        mean_pred = 0.5 * (pred1 + pred2)
+
+        return mean_pred
+
+
+    def fetch_samples_from_datasets(self):
         """
-        # Repetitive roundrobin
+        Fetch one batch of samples from each dataset and merge them into a single mixed batch
+        """
         iterables_ = {key : iter(it) for key, it in self.dataloaders.items()}
-        dataset_keys = list(self.dataloaders.keys())
-        print("DEBUG: Dataset keys are: {}".format(dataset_keys))
-        probabilities = [self.normalized_ratios[key] for key in dataset_keys]
-        exhausted = {key: False for key in dataset_keys}
-        running_count = 0 # To keep track of the number of samples yielded
+        exhausted = {key: False for key in self.dataloaders.keys()}
+        overlapping_keys = None
+        running_count = 0
 
         while running_count < self.dataloader_size and not all(exhausted.values()):
-            # Pick a key at random
-            chosen_key = random.choices(dataset_keys, weights=probabilities, k=1)[0]
+            mixed_batch = {}
+            overlapping_keys = None
+            temp_batches = []
             
-            print("DEBUG: Chosen key is: {}".format(chosen_key))
-            try:
-                yield next(iterables_[chosen_key])
-            except StopIteration:
-                exhausted[chosen_key] = True
-                iterables_[chosen_key] = itertools.cycle(self.dataloaders[chosen_key])
-                # First elements may get repeated if one iterable is shorter than the others
-                yield next(iterables_[chosen_key])
-
+            for key, iterator in iterables_.items():
+                try:
+                    # Fetch one batch from the current dataset
+                    retrieves = next(iterator)
+                except StopIteration:
+                    exhausted[key] = True
+                    iterables_[key] = itertools.cycle(self.dataloaders[key])
+                    retrieves = next(iterator)
+                
+                temp_batches.append(retrieves)
+                
+                # Determine if overlapping keys across datasets
+                if overlapping_keys is None:
+                    overlapping_keys = set(retrieves.keys())
+                else:
+                    overlapping_keys &= set(retrieves.keys())
+            
+            if overlapping_keys is None:
+                raise Exception("Datasets have no overlapping keys")
+            
+            # Merge the batches into a single mixed batch
+            for key in overlapping_keys:
+                mixed_batch[key] = None
+            
+            for batch in temp_batches: # Concatenating them together
+                for key in overlapping_keys:
+                    if mixed_batch[key] is None:
+                        mixed_batch[key] = batch[key]
+                    else:
+                        if isinstance(mixed_batch[key], torch.Tensor):
+                            mixed_batch[key] = torch.cat((mixed_batch[key], batch[key]), dim=0)
+                        else:
+                            mixed_batch[key].extend(batch[key])      
+            
             running_count += 1
+            yield(mixed_batch)
+        
 
     def __iter__(self):
-        return self.ratio_aware_repetitive_roundrobin()
+        return self.fetch_samples_from_datasets()
 
     def __len__(self):
         # First samples get repeated, thats why the plus one
         return self.dataloader_size
 
 class MixedARTKITTINYU(object):
-    def __init__(self, config, mode, sample_ratio =None, device='cpu', **kwargs):
-
-        if sample_ratio is None:
-            
-            sample_ratio = {
-                'kitti': 1,
-                'art' : 1,
-                # 'nyu' : 1
-            }
+    def __init__(self, config, mode, device='cpu', **kwargs):
+        
+        sample_ratios = {
+            'kitti': config.kitti_ratio,
+            'art' : config.art_ratio,
+            # 'nyu' : 1
+        }
 
         # Dataset Configurations
+        config = edict(config)
         self.config = config
+
+        # Smallest Eats first: Making sure that there is at least batch size 1 for every dataset.
+        # First, check if the batch size is at least the number of datasets. If not, raise error.
+        self.batch_size = config.batch_size
+        if len(sample_ratios) > self.batch_size:
+            raise Exception("Error in MixedARTKITTINYU: Batch size cannot be less than the number of datasets")
+        if config.workers < len(sample_ratios):
+            raise Exception("Error in MixedARTKITTINYU: Number of workers cannot be less than the number of datasets")
         
+        # Normalize the batch sizes across sample_ratios
+        tot = sum(sample_ratios.values())
+        self.normalized_ratios = {key: (values / tot) for key, values in sample_ratios.items()}
+        self.normalized_batches = {key: value * self.batch_size for key, value in self.normalized_ratios.items()}
+        self.normalized_workers = {key: value * config.workers  for key, value in self.normalized_ratios.items()}
+        self.sorted_normalized_batches= list(sorted(self.normalized_batches.items(), key=lambda x:x[1]))
+        self.sorted_normalized_workers= list(sorted(self.normalized_workers.items(), key=lambda x:x[1]))
+        final_batches = {}
+        final_workers = {}
+        num_batches_left = self.batch_size
+        num_workers_left = config.workers
+        num_datasets = len(sample_ratios)
+
+        # Assigning batches based on sorted normalized batches
+        for i, (k, num_samples) in enumerate(self.sorted_normalized_batches): # num_samples here is a float
+            if num_samples < 1:
+                # Round up the batch size to one
+                final_batches[k] = 1
+                # Eat away from the next batch
+                self.sorted_normalized_batches[i+1][1] -= (1 - num_samples) # Should always work because there is at least batch_size number of datasets
+            else:
+                if i < num_datasets -1 :
+                    final_batches[k] = int(num_samples//1) # floor of num_samples
+                else:
+                    final_batches[k] = num_batches_left
+            num_batches_left -= final_batches[k]
+                
+        # Assigning workers based on sorted normalized workers
+        for i, (k, num_workers) in enumerate(self.sorted_normalized_workers): # num_workers here is a float
+            if num_workers < 1:
+                # Round up the worker count to one
+                final_workers[k] = 1
+                # Eat away from the next batch
+                self.sorted_normalized_workers[i+1][1] -= (1 - num_workers)
+            else:
+                if i < num_datasets -1:
+                    final_workers[k] = int(num_workers//1) # floor of num_workers
+                else:
+                    final_workers[k] = num_workers_left
+            num_workers_left -= final_workers[k]
+  
+        # Converting the list back into a dictionary
+        final_batches = dict(final_batches)
+        final_workers = dict(final_workers)
+        print(final_batches, final_workers)
+        
+        # Getting the config for each dataset
+        conf_list = {}
+        for k in sample_ratios.keys():
+            conf_list[k] = change_dataset(edict(config), k) # This is not working for the ART Dataset. 
+            conf_list[k].batch_size = final_batches[k] # Updating the adjusted batch size
+            conf_list[k].workers = final_workers[k] # Updating the adjusted worker count
+            print("Dataset {} will have a {} batch size, for {} workers".format(k, conf_list[k].batch_size, conf_list[k].workers))
+        
+        # Creating dataloaders
         if mode == 'train':
             dataloaders = {}
-            for dataset_type in sample_ratio.keys():
-                dataloaders[dataset_type] = DepthDataLoader(self.config, dataset_type, mode, device=device).data
-    
+            for dataset_type, conf in conf_list.items():
+                dataloaders[dataset_type] = DepthDataLoader(conf, mode, device=device).data
+                print("Dataloader of {} has {} samples, {} batches".format(dataset_type, len(dataloaders[dataset_type])* dataloaders[dataset_type].batch_size, len(dataloaders[dataset_type])))
             # Ratio Aware Dataloader
-            self.data = SampleRatioAwareDataLoader(dataloaders, ratios=sample_ratio)
+            self.data = SampleRatioAwareDataLoader(dataloaders, self.normalized_ratios)
         else:
-            self.data = DepthDataLoader(self.config, 'art', mode, device=device).data
-
+            # Testing Dataset
+            art_test_conf = change_dataset(edict(config), 'art_test')
+            art_test_conf.workers = art_test_conf.eval_workers
+            # Make art_test default for testing
+            self.data = DepthDataLoader(art_test_conf, mode, device=device).data
 
 def remove_leading_slash(s):
     if s[0] == '/' or s[0] == '\\':
@@ -234,7 +371,6 @@ class CachedReader:
             im = self._cache[fpath] = Image.open(fpath)
         return im
 
-
 class ImReader:
     def __init__(self):
         pass
@@ -243,9 +379,8 @@ class ImReader:
     def open(self, fpath):
         return Image.open(fpath)
 
-
 class DataLoadPreprocess(Dataset):
-    def __init__(self, config, dataset_type, mode, transform=None, is_for_online_eval=False, **kwargs):
+    def __init__(self, config, mode, transform=None, is_for_online_eval=False, **kwargs):
         """
         Initializes the dataset loader.
 
@@ -258,10 +393,7 @@ class DataLoadPreprocess(Dataset):
         """
         
         # Store configuration, mode, and transformation function
-        self.dataset_config = getattr(config, dataset_type)
-        self.aug_config = getattr(config, 'augmentations')
-        if self.dataset_config is None:
-            raise ValueError(f"Dataset {dataset_type} is not defined in config")
+        self.config = config
         self.mode = mode
         self.transform = transform
         self.is_for_online_eval = is_for_online_eval
@@ -269,10 +401,10 @@ class DataLoadPreprocess(Dataset):
         # Load filenames based on mode (training or evaluation).
         # If mode is 'online_eval', load from `filenames_file_eval`, otherwise from `filenames_file`.
         if mode == 'online_eval':
-            with open(self.dataset_config.filenames_file_eval, 'r') as f:
+            with open(config.filenames_file_eval, 'r') as f:
                 self.filenames = f.readlines()
         else:
-            with open(self.dataset_config.filenames_file, 'r') as f:
+            with open(config.filenames_file, 'r') as f:
                 self.filenames = f.readlines()
 
         # Initialize a tensor transformation method specific to the mode
@@ -285,18 +417,45 @@ class DataLoadPreprocess(Dataset):
         else:
             # Default to a simple image reader
             self.reader = ImReader()
+            
+        # Initialize Depth Anything model
+        self.model = build_model(config)
 
-        # Set cropping bound if using the 'art' dataset
-        if self.dataset_config.dataset[:3] == 'art':
-            self.crop_remain = self.dataset_config.crop_remain
-        
-        self.config = self.dataset_config
+    @torch.no_grad()
     def postprocess(self, sample):
         """
         Placeholder for any postprocessing that needs to be applied to each sample.
         By default, it just returns the sample as-is.
         """
+        def get_depth_from_prediction(pred):
+            if isinstance(pred, torch.Tensor):
+                pred = pred  # pass
+            elif isinstance(pred, (list, tuple)):
+                pred = pred[-1]
+            elif isinstance(pred, dict):
+                pred = pred['metric_depth'] if 'metric_depth' in pred else pred['out']
+            else:
+                raise NotImplementedError(f"Unknown output type {type(pred)}")
+            return pred
+        
+        images = sample['image']
+        try :
+            focal = sample.get('focal', torch.Tensor([self.config.focal]).cuda())  
+        except:
+            raise Exception("Focal not found in sample")
+            # focal = sample.get('focal', torch.Tensor([self.config.focal]).cuda())
+        # focal = sample.get('focal', torch.Tensor([715.0873]).cuda())  
+        pred1 = self.model(images, dataset=sample['dataset'][0], focal=focal)
+        pred1 = get_depth_from_prediction(pred1)
+
+        pred2 = self.model(torch.flip(images, [3]), dataset=sample['dataset'][0], focal=focal)
+        pred2 = get_depth_from_prediction(pred2)
+        pred2 = torch.flip(pred2, [3])
+
+        mean_pred = 0.5 * (pred1 + pred2)
+        sample['depth'] = mean_pred
         return sample
+  
 
     def __getitem__(self, idx):
         """
@@ -354,8 +513,8 @@ class DataLoadPreprocess(Dataset):
                 image = image.crop((left_margin, top_margin, left_margin + 1216, top_margin + 352))
 
             # Random rotation augmentation
-            if self.aug_config.do_random_rotate and self.aug_config.apply:
-                random_angle = (random.random() - 0.5) * 2 * self.aug_config.degree
+            if self.config.do_random_rotate and self.config.aug:
+                random_angle = (random.random() - 0.5) * 2 * self.config.degree
                 image = self.rotate_image(image, random_angle)
                 depth_gt = self.rotate_image(depth_gt, random_angle, flag=Image.NEAREST)
 
@@ -368,16 +527,13 @@ class DataLoadPreprocess(Dataset):
             if self.config.dataset == 'nyu':
                 depth_gt /= 1000.0
             else:
-                # Converting from uint16 to float
-                depth_gt /= 256.0
-                # Normalizing to 0-1
                 depth_gt /= 256.0
 
             # Apply random crop and random translation if enabled in config
-            if self.aug_config.apply and self.aug_config.random_crop:
+            if self.config.aug and self.config.random_crop:
                 image, depth_gt = self.random_crop(image, depth_gt, self.config.input_height, self.config.input_width)
-            if self.aug_config.apply and self.aug_config.random_translate:
-                image, depth_gt = self.random_translate(image, depth_gt, self.aug_config.max_translation)
+            if self.config.aug and self.config.random_translate:
+                image, depth_gt = self.random_translate(image, depth_gt, self.config.max_translation)
 
             # Additional preprocessing for training
             image, depth_gt = self.train_preprocess(image, depth_gt)
@@ -417,15 +573,23 @@ class DataLoadPreprocess(Dataset):
 
 
         # Apply Art dataset-specific cropping.
-        
-        if self.config.dataset[:3] == 'art' and self.config.do_art_crop and has_valid_depth:
+        if self.config.do_art_crop and has_valid_depth:
             height, width, _ = image.shape
-            bottom_margin = (height - self.crop_remain) // 2
+            bottom_margin = (height - self.config.crop_remain) // 2
             top_margin = height - bottom_margin
+            
+            # Also Crop Width if Kitti dataset
+            if self.config.dataset == 'kitti':
+                left_margin = (width - self.config.art_width) // 2
+                right_margin = width - left_margin
+            else:
+                left_margin = 0
+                right_margin = width
+            
             # Crop both image and depth ground truth
-            depth_gt = depth_gt[bottom_margin:top_margin, ...] 
-            image = image[bottom_margin:top_margin, ...]
-            mask = mask[:, bottom_margin:top_margin, ...]
+            depth_gt = depth_gt[bottom_margin:top_margin, left_margin:right_margin, ...] 
+            image = image[bottom_margin:top_margin, left_margin:right_margin, ...]
+            mask = mask[:, bottom_margin:top_margin, left_margin:right_margin, ...]
             
         
         if self.mode == 'train':
@@ -476,7 +640,7 @@ class DataLoadPreprocess(Dataset):
         return img, depth
 
     def train_preprocess(self, image, depth_gt):
-        if self.aug_config.apply:
+        if self.config.aug:
             # Random flipping
             do_flip = random.random()
             if do_flip > 0.5:
@@ -525,48 +689,72 @@ class ToTensor(object):
             self.resize = transforms.Resize(size=size)
         else:
             self.resize = nn.Identity()
-        
+            
         # Add in Image Augmentations here
-        if mode == 'train' and config and config.apply:
-            self.augment_probability = config.get("probability", 0.5)
+        if mode == 'train' and config and config["apply_augmentations"]:
+            self.augment_probability = config.get("augmentation_probability", 0.5)
             
             # List of Augmentations to Perform
-            jitter_config = config.get("jitter")
             self.augmentations = [
                 transforms.ColorJitter(
-                    brightness=jitter_config.get("brightness", 0.2),
-                    contrast=jitter_config.get("contrast", 0.2),
-                    saturation=jitter_config.get("saturation", 0.1),
-                    hue=jitter_config.get("hue", 0.2)
+                    brightness=config.get("brightness", 0.2),
+                    contrast=config.get("contrast", 0.2),
+                    saturation=config.get("saturation", 0.1),
+                    hue=config.get("hue", 0.2)
                 ),
                 # v2.RandomInvert(p =1.0),
                 v2.RandomEqualize(p=1.0),
                 # v2.RandomSolarize(threshold=192.0/255.0, p=1.0)
             ]
+            
+            # augmentation_transforms = []
+            # if config and config.apply_jitter:
+            #     probability = config.get("probability", 0.5)
+            #     augmentation_transforms.append(transforms.RandomApply(
+            #         [transforms.ColorJitter(
+            #             brightness=config.get("brightness", 0.15),
+            #             contrast=config.get("contrast", 0.5),
+            #             saturation=config.get("saturation", 0.5),
+            #             hue=config.get("hue", 0.1)
+            #         )],
+            #         p=probability
+            #     ))
+            
+            # if config and config.apply_invert:
+            #     augmentation_transforms.append(
+            #         v2.RandomInvert(p =probability)
+            #     )
+
+            # # equalizer = v2.RandomEqualize()
+            # # solarizer = v2.RandomSolarize(threshold=192.0)
+            # self.augment_transform = transforms.Compose(augmentation_transforms)
         else:
             self.augmentations = []
             self.augment_probability = 0
-            # self.augment_transform = nn.Identity() 
-            
+            # self.augment_transform = nn.Identity()
+        
     def __call__(self, sample):
         image, focal = sample['image'], sample['focal']
         image = self.to_tensor(image)
+        
         if self.mode == 'train' and self.augmentations and random.random() < self.augment_probability:
             augmentation = random.choice(self.augmentations)
             image = augmentation(image)
         image = self.normalize(image)
         image = self.resize(image)
-        
+
         if self.mode == 'test':
             return {'image': image, 'focal': focal}
 
         depth = sample['depth']
         if self.mode == 'train':
+            
             depth = self.to_tensor(depth)
             return {**sample, 'image': image, 'depth': depth, 'focal': focal}
         else:
             has_valid_depth = sample['has_valid_depth']
             image = self.resize(image)
+            # print("DEBUG: ", sample.keys(), " MODE: ", self.mode)
             return {**sample, 'image': image, 'depth': depth, 'focal': focal}
 
             # return {**sample, 'image': image, 'depth': depth, 'focal': focal, 'has_valid_depth': has_valid_depth,

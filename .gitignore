@@ -6,6 +6,7 @@ config.yaml
 *.gif
 *.hdf5
 models
+DepthAnything
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
