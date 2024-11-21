@@ -30,10 +30,39 @@ from artdepth.utils.easydict import EasyDict as edict
 from artdepth.utils.arg_utils import infer_type
 import pathlib
 import platform
-
-ROOT = pathlib.Path(__file__).parent.parent.resolve()
-
+ROOT = os.path.join(pathlib.Path(__file__).parent.parent.resolve(), "DepthAnything/metric_depth/zoedepth")
+print("ROOT", ROOT)
 HOME_DIR = os.path.expanduser("./data")
+ROOT_DIR: "/home/art-chris/testing/ART-depth-rt/data" # Dataset Root
+
+
+COMMON_TRAINING_CONFIG = {
+    "dataset": "art",
+    "distributed": False,  # Set to True for multi-GPU training
+    "workers": 16,
+    "eval_workers": 8,
+    "clip_grad": 0.1,
+    "use_shared_dict": False,
+    "shared_dict": None,
+    "use_amp": False,
+
+    "aug": True,
+    "random_crop": False,
+    "random_translate": False,
+    "translate_prob": 0.2,
+    "max_translation": 100,
+
+    "validate_every": 0.06,
+    "log_images_every": 0.1,
+    "prefetch": False,
+    
+    "kitti_ratio": 1.0,
+    "art_ratio": 1.0,
+    
+    "dense_depth": True,
+    "pretrained_resource": "local::./checkpoints/ZoeDepthv1_19-Nov_21-22-2626a9246a8f_best.pt"
+}
+
 
 COMMON_CONFIG = {
     "save_dir": os.path.expanduser("./depth_anything_finetune"),
@@ -295,26 +324,6 @@ ALL_INDOOR = ["nyu", "ibims", "sunrgbd", "diode_indoor", "hypersim_test"]
 ALL_OUTDOOR = ["kitti", "diml_outdoor", "diode_outdoor",  "vkitti2", "ddad"]
 ALL_EVAL_DATASETS = ALL_INDOOR + ALL_OUTDOOR
 
-COMMON_TRAINING_CONFIG = {
-    "dataset": "nyu",
-    "distributed": False,  # Set to True for multi-GPU training
-    "workers": 16,
-    "eval_workers": 8,
-    "clip_grad": 0.1,
-    "use_shared_dict": False,
-    "shared_dict": None,
-    "use_amp": False,
-
-    "aug": True,
-    "random_crop": False,
-    "random_translate": False,
-    "translate_prob": 0.2,
-    "max_translation": 100,
-
-    "validate_every": 0.06,
-    "log_images_every": 0.1,
-    "prefetch": False,
-}
 
 
 def flatten(config, except_keys=('bin_conf')):
@@ -378,6 +387,7 @@ def get_model_config(model_name, model_version=None):
     """
     config_fname = f"config_{model_name}_{model_version}.json" if model_version is not None else f"config_{model_name}.json"
     config_file = os.path.join(ROOT, "models", model_name, config_fname)
+    print(config_file)
     if not os.path.exists(config_file):
         return None
 
@@ -396,6 +406,7 @@ def get_model_config(model_name, model_version=None):
 
 def update_model_config(config, mode, model_name, model_version=None, strict=False):
     model_config = get_model_config(model_name, model_version)
+    print(model_config)
     if model_config is not None:
         config = {**config, **
                   flatten({**model_config.model, **model_config[mode]})}
@@ -442,7 +453,8 @@ def get_config(model_name, mode='train', dataset=None, **overwrite_kwargs):
 
     config = flatten({**COMMON_CONFIG, **COMMON_TRAINING_CONFIG})
     config = update_model_config(config, mode, model_name)
-
+    # import pprint
+    # pprint(config)
     # update with model version specific config
     version_name = overwrite_kwargs.get("version_name", config["version_name"])
     config = update_model_config(config, mode, model_name, version_name)

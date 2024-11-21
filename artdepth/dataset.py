@@ -59,7 +59,7 @@ def preprocessing_transforms(mode, config = None, **kwargs):
 
 
 class DepthDataLoader(object):
-    def __init__(self, config, mode, device='cpu', transform=None, **kwargs):
+    def __init__(self, config, mode,    device='cpu', transform=None, **kwargs):
         """
         Data loader for depth datasets
 
@@ -268,7 +268,6 @@ class MixedARTKITTINYU(object):
         sample_ratios = {
             'kitti': config.kitti_ratio,
             'art' : config.art_ratio,
-            # 'nyu' : 1
         }
 
         # Dataset Configurations
@@ -421,22 +420,23 @@ class DataLoadPreprocess(Dataset):
         # Initialize Depth Anything model
         self.model = build_model(config)
 
+    def get_depth_from_prediction(self, pred):
+        if isinstance(pred, torch.Tensor):
+            pred = pred  # pass
+        elif isinstance(pred, (list, tuple)):
+            pred = pred[-1]
+        elif isinstance(pred, dict):
+            pred = pred['metric_depth'] if 'metric_depth' in pred else pred['out']
+        else:
+            raise NotImplementedError(f"Unknown output type {type(pred)}")
+        return pred
+    
     @torch.no_grad()
     def postprocess(self, sample):
         """
         Placeholder for any postprocessing that needs to be applied to each sample.
         By default, it just returns the sample as-is.
         """
-        def get_depth_from_prediction(pred):
-            if isinstance(pred, torch.Tensor):
-                pred = pred  # pass
-            elif isinstance(pred, (list, tuple)):
-                pred = pred[-1]
-            elif isinstance(pred, dict):
-                pred = pred['metric_depth'] if 'metric_depth' in pred else pred['out']
-            else:
-                raise NotImplementedError(f"Unknown output type {type(pred)}")
-            return pred
         
         images = sample['image']
         try :
@@ -446,10 +446,10 @@ class DataLoadPreprocess(Dataset):
             # focal = sample.get('focal', torch.Tensor([self.config.focal]).cuda())
         # focal = sample.get('focal', torch.Tensor([715.0873]).cuda())  
         pred1 = self.model(images, dataset=sample['dataset'][0], focal=focal)
-        pred1 = get_depth_from_prediction(pred1)
+        pred1 = self.get_depth_from_prediction(pred1)
 
         pred2 = self.model(torch.flip(images, [3]), dataset=sample['dataset'][0], focal=focal)
-        pred2 = get_depth_from_prediction(pred2)
+        pred2 = self.get_depth_from_prediction(pred2)
         pred2 = torch.flip(pred2, [3])
 
         mean_pred = 0.5 * (pred1 + pred2)
